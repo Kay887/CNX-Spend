@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="CNX">
-<title>CNX — Kay's Financial OS · v4.7</title>
+<title>CNX — Kay's Financial OS · v4.8</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -306,7 +306,7 @@ create policy "public rw" on cnx_data for all using (true);</code>
 <div class="hdr">
   <div>
     <div class="logo">CNX</div>
-    <div class="logo-sub">KAY'S FINANCIAL OS · APR–DEC 2026 · v4.7</div>
+    <div class="logo-sub">KAY'S FINANCIAL OS · APR–DEC 2026 · v4.8</div>
   </div>
   <div class="hdr-r">
     <div class="phase-tag" id="phase-tag">PHASE 1</div>
@@ -318,7 +318,8 @@ create policy "public rw" on cnx_data for all using (true);</code>
     <div style="font-family:var(--mn);font-size:8px;color:var(--t3)" id="last-saved"></div>
     <button class="hdr-btn" onclick="exportData()">EXPORT</button>
     <button class="hdr-btn" onclick="document.getElementById('import-file').click()" style="border-color:rgba(0,217,104,.3);color:var(--gn)">IMPORT</button>
-    <button class="hdr-btn" onclick="forcePush()" style="border-color:rgba(0,200,240,.3);color:var(--ac)" title="Force push local data to cloud">↑ PUSH</button>
+    <button class="hdr-btn" onclick="mergePushToSupabase()" style="border-color:rgba(0,217,104,.45);color:var(--gn)" title="Merge this device's data INTO the cloud — only adds, never overwrites">⇧ MERGE PUSH</button>
+    <button class="hdr-btn" onclick="forcePush()" style="border-color:rgba(255,61,90,.3);color:var(--rd)" title="DANGER: replaces the entire cloud copy with this device's data">↑ PUSH (REPLACE)</button>
     <button class="hdr-btn" onclick="forcePull()" style="border-color:rgba(157,111,255,.3);color:var(--pu)" title="Force pull cloud data to this device">↓ PULL</button>
     <button class="hdr-btn" onclick="restoreFromCloud()" style="border-color:rgba(0,217,104,.35);color:var(--gn)" title="Restore the newest dated cloud backup (fills gaps, never overwrites)">☁ RESTORE</button>
     <button class="hdr-btn" onclick="restoreHistoric()" style="border-color:rgba(240,165,0,.35);color:var(--go)" title="Re-merge the embedded 1 Sep 2026 historic snapshot (fills gaps, never overwrites)">↺ RESTORE</button>
@@ -345,11 +346,12 @@ create policy "public rw" on cnx_data for all using (true);</code>
   <div class="sec-t">Overview</div>
   <div class="sec-s">Birds-eye view of your financial position — <span id="ov-month-lbl">April 2026</span></div>
   <div class="mstrip" id="ov-strip"></div>
+  <div id="ov-pace"></div>
   <div class="g4" style="margin-bottom:13px">
     <div class="stat"><div class="sl">Monthly Income</div><div class="sv" id="ov-income">₹1,49,000</div><div class="ss" id="ov-income-s">Fixed take-home</div></div>
     <div class="stat rd"><div class="sl">Planned Expenses</div><div class="sv" id="ov-exp">—</div><div class="ss" id="ov-exp-s">This month</div></div>
-    <div class="stat gn"><div class="sl">EF Contribution</div><div class="sv" id="ov-ef">—</div><div class="ss" id="ov-ef-s">This month</div></div>
-    <div class="stat go"><div class="sl">Buffer</div><div class="sv" id="ov-buf">—</div><div class="ss" id="ov-buf-s">This month</div></div>
+    <div class="stat gn"><div class="sl">Emergency Fund <span style="color:var(--t3)">· confirmed</span></div><div class="sv" id="ov-ef">—</div><div class="ss" id="ov-ef-s">This month</div></div>
+    <div class="stat go"><div class="sl">Buffer <span style="color:var(--t3)">· confirmed</span></div><div class="sv" id="ov-buf">—</div><div class="ss" id="ov-buf-s">This month</div></div>
   </div>
   <div class="card" style="margin-bottom:13px">
     <div class="ct"><div class="ct-l">Smart Alerts</div></div>
@@ -627,6 +629,7 @@ create policy "public rw" on cnx_data for all using (true);</code>
       <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--t3);font-family:var(--mn);margin-bottom:10px">
         <span id="ef-pct-lbl">0% of target</span><span id="ef-months-left">— months to ₹2L</span>
       </div>
+      <div id="ef-pace"></div>
       <div id="ef-source-breakdown"></div>
       <div id="ef-milestones"></div>
       <div class="div"></div>
@@ -647,7 +650,7 @@ create policy "public rw" on cnx_data for all using (true);</code>
       <div style="margin-bottom:10px">
         <div class="sl">NET BUFFER BALANCE</div>
         <div style="font-family:var(--mn);font-size:28px;font-weight:700;color:var(--go)" id="buf-balance">₹0</div>
-        <div style="font-size:10px;color:var(--t2);margin-top:2px" id="buf-forecast-lbl">Forecast total: — (after ₹50k bike · June actuals as opening)</div>
+        <div style="font-size:10px;color:var(--t2);margin-top:2px" id="buf-forecast-lbl">Forecast total: —</div>
       </div>
       <div class="pb h10" style="margin-bottom:6px">
         <div class="pbf" id="buf-bar" style="background:linear-gradient(90deg,var(--go),#ffd060);width:0%"></div>
@@ -655,6 +658,7 @@ create policy "public rw" on cnx_data for all using (true);</code>
       <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--t3);font-family:var(--mn);margin-bottom:10px">
         <span id="buf-pct-lbl">0% of forecast</span><span id="buf-total-lbl">Forecast: —</span>
       </div>
+      <div id="buf-pace"></div>
       <div id="buf-source-breakdown"></div>
       <div id="buf-breakdown"></div>
       <div class="div"></div>
@@ -668,7 +672,7 @@ create policy "public rw" on cnx_data for all using (true);</code>
         <div class="pfx" style="flex:1"><span class="px">₹</span><input class="inp" type="number" id="buf-inp" placeholder="Deduct from buffer"/></div>
         <button class="btn btn-d" onclick="useBuffer()">DEDUCT</button>
       </div>
-      <div class="fl" style="margin-bottom:0"><input class="inp" id="buf-note" placeholder="Note e.g. Bike purchase, Emergency..."/></div>
+      <div class="fl" style="margin-bottom:0"><input class="inp" id="buf-note" placeholder="Note e.g. Emergency, Large purchase..."/></div>
     </div>
   </div>
   <div class="g2" style="margin-bottom:13px">
@@ -701,7 +705,6 @@ create policy "public rw" on cnx_data for all using (true);</code>
       </div>
     </div>
     <div class="chart-area" id="buf-chart"></div>
-    <div style="font-size:10px;color:var(--go);margin-top:6px">🏍 Vehicle ₹50,000 deducted in September</div>
   </div>
   <div class="card">
     <div class="ct"><div class="ct-l">Monthly Contribution Notes · Flag reductions with reasons</div></div>
@@ -761,6 +764,7 @@ create policy "public rw" on cnx_data for all using (true);</code>
   <div class="sec-t">Financial Forecast</div>
   <div class="sec-s">Full Apr–Dec 2026 plan. Month-by-month table + 6M & Year-end summaries. <strong style="color:var(--ac)">Live</strong> — months with no Savings-tab entries accrue the plan's EF/Buffer contribution automatically; months where you log actuals on the Savings tab use the logged amount instead. Logging under plan creates a deficit that carries forward until recovered. June is the opening month (EF ₹10,000, Buffer ₹0).</div>
   <div class="g4" style="margin-bottom:13px" id="fc-6m-stats"></div>
+  <div id="fc-pace"></div>
   <div id="fc-recovery-banner"></div>
   <div class="card" style="margin-bottom:13px">
     <div class="ct"><div class="ct-l">Month-by-Month Forecast · April → December 2026</div>
@@ -778,7 +782,7 @@ create policy "public rw" on cnx_data for all using (true);</code>
         <tbody id="fc-tbody"></tbody>
       </table>
     </div>
-    <div style="font-size:10px;color:var(--t3);margin-top:8px">* Buffer cumulative after ₹50k vehicle deduction in September · June is the opening month for EF & Buffer (Apr & May excluded) · EF/Buffer Contrib columns show the plan figure, or the LOGGED actual (with plan in brackets) for months with Savings-tab entries · Deficit column shows the running shortfall vs the original plan for months logged under plan.</div>
+    <div style="font-size:10px;color:var(--t3);margin-top:8px">* June is the opening month for EF & Buffer (Apr & May excluded) · EF/Buffer Contrib columns show the plan figure, or the LOGGED actual (with plan in brackets) for months with Savings-tab entries · Deficit column shows the running shortfall vs the original plan for months logged under plan.</div>
   </div>
   <div class="g2" style="margin-bottom:13px">
     <div class="card">
@@ -858,42 +862,26 @@ const INCOME = 149000;
 const CC1_TOTAL = 93000;
 const CC2_TOTAL = 95000;
 const EF_TARGET = 200000;
-const BUFFER_TARGET = 100000; // post-bike buffer reserve goal (was hardcoded in the Overview buckets)
-const VEHICLE_COST = 50000;
-// v4.4 — the vehicle purchase is no longer pinned to a fixed month. It now
-// fires in the FIRST month cumulative buffer (before deduction) reaches
-// ₹50,000, capped no later than November — buy as soon as you can afford it,
-// but no later than the November deadline (accepting a temporary negative
-// buffer that month if funds still aren't there by then, same as the old
-// forced-September behaviour, just later).
-const VEHICLE_DEADLINE = '2026-11';
+const BUFFER_TARGET = 100000; // standing buffer reserve goal
 const OPENING_MONTH = '2026-06'; // EF & Buffer tracking starts here — April & May excluded
 const EXCLUDED_MONTHS = ['2026-04', '2026-05'];
 
-// series: ordered [{key, buf}] for every PLAN month (excluded months should
-// pass buf:0). Returns the month key the vehicle purchase should land in.
-function computeVehicleMonth(series, snapOverride) {
-  let cum = 0;
-  for (const row of series) {
-    cum += row.buf;
-    if (snapOverride && row.key === snapOverride.month) cum = snapOverride.amt;
-    if (cum >= VEHICLE_COST) return row.key <= VEHICLE_DEADLINE ? row.key : VEHICLE_DEADLINE;
-  }
-  return VEHICLE_DEADLINE; // never affordable in-plan — force the deadline anyway
-}
+// v4.8 — the bike/vehicle goal is GONE. It used to deduct ₹50,000 from the
+// buffer cumulative in whichever month the projection could first afford it,
+// which meant every buffer figure in the app was quietly reporting
+// "after a purchase that hasn't happened". Buffer now simply accumulates.
+// If a real purchase happens, log it as a buffer withdrawal like anything else.
 
 // ── Plan-based cumulative model (static baseline, used when no actuals exist yet) ──
-const PLAN_VEHICLE_MONTH = computeVehicleMonth(PLAN.map(m => ({ key: m.key, buf: EXCLUDED_MONTHS.includes(m.key) ? 0 : m.buf })));
 let _cumEF  = 0;
 let _cumBuf = 0;
 
 const MDATA_PLAN = PLAN.map(m => {
   const totalExp = m.fixed + m.core + m.cc1 + m.cc2 + (m.purchase || 0);
   const debt = m.cc1 + m.cc2;
-  const veh = m.key === PLAN_VEHICLE_MONTH ? VEHICLE_COST : 0;
   _cumEF += m.ef;
-  _cumBuf += m.buf - veh;
-  return { ...m, totalExp, debt, veh, cumEF: _cumEF, cumBuf: _cumBuf };
+  _cumBuf += m.buf;
+  return { ...m, totalExp, debt, cumEF: _cumEF, cumBuf: _cumBuf };
 });
 
 const CAT_ICONS = { Fixed:'🏠', CC1:'💳', CC2:'💳', EF:'🛡', Buffer:'💰', CNIS:'📋', LIC:'🛡', Purchase:'🛍', Transport:'🚗', Groceries:'🛒', Food:'🍔', Meds:'💊', Misc:'📦' };
@@ -938,8 +926,6 @@ let STATE = {
   ccExpenses: [],
   efAdjust: 0, bufAdjust: 0,
   efLedger: [], bufLedger: [],
-  bikeLog: [], reLog: [],   // legacy Goals-tab data — retained so nothing is lost, no longer surfaced
-  bikeAmt: 0, reAmt: 0,
   investments: [],          // v4.7 — My Investments: manual portfolio [{id,name,amt,type,note,date,updated}]
   notes: {},
   priorities: { p0:0, p1:0, p2:0, p3:0 },
@@ -950,8 +936,7 @@ let STATE = {
   // a given month, overriding whatever the computed trajectory says. Everything
   // from that month forward recalculates from this baseline; prior drift is
   // cleared. v4.7 — re-declared as of AUGUST 2026: EF ₹80,000 / Buffer ₹30,000
-  // (August is the last CLOSED month — salary arrives a month in arrears, see
-  // SALARY_LAG_MONTHS). Clear or re-set via the EF & Buffer tab.
+  // (August is the last CLOSED month). Clear or re-set via the EF & Buffer tab.
   efOpening: { ...DEFAULT_EF_OPENING },
   bufOpening: { ...DEFAULT_BUF_OPENING },
   openingRev: null,    // v4.7 — stamps which declared baseline revision has been applied
@@ -969,6 +954,7 @@ const SB_CONFIG_KEY = 'cnx_sb_config';
 const LS_KEY        = 'cnx_v4';
 const ROW_ID        = 'cnx_kay_main';
 const POLL_MS       = 8000;
+const SLOW_POLL_MS  = 30000;  // safety poll kept running while the websocket is LIVE
 
 let sbUrl     = SB_HARDCODED_URL.replace(/\/$/, '');
 let sbKey     = SB_HARDCODED_KEY;
@@ -1013,7 +999,7 @@ function showToast(msg, type = 'info', ms = 3000) {
 
 const lsSave = () => {
   try {
-    STATE.lastUpdated = STATE.lastUpdated || Date.now();
+    STATE.lastUpdated = STATE.lastUpdated || syncNow();
     localStorage.setItem(LS_KEY, JSON.stringify(STATE));
     const ts = document.getElementById('last-saved');
     if (ts) ts.textContent = 'SAVED ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
@@ -1023,6 +1009,30 @@ const lsLoad = () => {
   try { const s = localStorage.getItem(LS_KEY); if (s) STATE = { ...STATE, ...JSON.parse(s) }; } catch(e) {}
 };
 
+// ===============================================
+//  SHARED CLOCK  (clock-skew fix)
+// ===============================================
+// Sync ordering is last-write-wins on `lastUpdated`, which every device used to
+// stamp from its OWN Date.now(). If the phone's clock ran a few minutes behind
+// the laptop's, the phone's edits looked older and were silently ignored — one
+// device's changes simply never arrived, with no error shown anywhere.
+//
+// Supabase returns its own time in the HTTP `Date` header on every response, so
+// we measure the offset and stamp `lastUpdated` on the SERVER's clock instead.
+// Every device then agrees on the ordering however wrong its own clock is.
+// Entry `id`s deliberately stay on the local clock — they are identity, not
+// ordering, and _confKeeps() depends on their existing values.
+let _clockSkew = 0;   // serverNow − localNow, in ms
+function _noteServerClock(res) {
+  try {
+    const h = res && res.headers && res.headers.get('date');
+    if (!h) return;
+    const t = Date.parse(h);
+    if (!isNaN(t)) _clockSkew = t - Date.now();
+  } catch(e) {}
+}
+function syncNow() { return Date.now() + _clockSkew; }
+
 async function sbFetch(path, opts = {}) {
   const headers = { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey, 'Content-Type': 'application/json' };
   if (opts.prefer) headers['Prefer'] = opts.prefer;
@@ -1030,6 +1040,7 @@ async function sbFetch(path, opts = {}) {
     headers, method: opts.method || 'GET',
     body: opts.body ? JSON.stringify(opts.body) : undefined
   });
+  _noteServerClock(res);
   if (!res.ok) { const err = await res.text().catch(() => String(res.status)); throw new Error(res.status + ': ' + err); }
   return res.status === 204 ? null : res.json();
 }
@@ -1042,7 +1053,7 @@ async function pushToSupabase(debounce = true) {
   _isSyncing = true;
   setSyncStatus('syncing', 'SAVING');
   try {
-    STATE.lastUpdated = Date.now();
+    STATE.lastUpdated = syncNow();
     const payload = JSON.parse(JSON.stringify(STATE));
     const base = sbUrl.replace(/\/$/, '');
     let res = await fetch(base + '/rest/v1/cnx_data?id=eq.' + ROW_ID, {
@@ -1163,7 +1174,7 @@ async function restoreFromCloud() {
     }
     mergeCloudPayload(p);
     STATE.seedSuppressed = false;
-    STATE.lastUpdated = Date.now();
+    STATE.lastUpdated = syncNow();
     deriveBalances(); save(); renderCurrentTab();
     showToast('✓ Restored cloud backup from ' + when, 'ok', 5000);
   } catch(e) {
@@ -1179,7 +1190,7 @@ function mergeCloudPayload(p) {
     const have = new Set((cur || []).map(e => e.id));
     return (cur || []).concat((incoming || []).filter(e => !have.has(e.id)));
   };
-  ['transactions','ccPayments','ccExpenses','efLedger','bufLedger','bikeLog','reLog','investments','forecastNotes']
+  ['transactions','ccPayments','ccExpenses','efLedger','bufLedger','investments','forecastNotes']
     .forEach(k => { STATE[k] = byId(STATE[k], p[k]); });
   ['additionalIncome','balanceAdjust'].forEach(k => {
     const inc = p[k] || {};
@@ -1247,8 +1258,6 @@ function normalizeState() {
   STATE.ccExpenses       = Array.isArray(STATE.ccExpenses)       ? STATE.ccExpenses       : [];
   STATE.efLedger         = Array.isArray(STATE.efLedger)         ? STATE.efLedger         : [];
   STATE.bufLedger        = Array.isArray(STATE.bufLedger)        ? STATE.bufLedger        : [];
-  STATE.bikeLog          = Array.isArray(STATE.bikeLog)          ? STATE.bikeLog          : [];
-  STATE.reLog            = Array.isArray(STATE.reLog)            ? STATE.reLog            : [];
   STATE.investments      = Array.isArray(STATE.investments)      ? STATE.investments      : [];
   STATE.forecastNotes    = Array.isArray(STATE.forecastNotes)    ? STATE.forecastNotes    : [];
   STATE.notes            = STATE.notes            || {};
@@ -1312,7 +1321,7 @@ function restoreHistoric() {
   if (!confirm('Restore the 1 Sep 2026 historic snapshot (' + n + ' transactions, CC payments, EF/Buffer ledgers, notes)?\n\nExisting entries are kept — this only fills in what is missing.')) return;
   mergeHistoricSeed();
   STATE.seedSuppressed = false;
-  STATE.lastUpdated = Date.now();
+  STATE.lastUpdated = syncNow();
   deriveBalances(); save(); renderCurrentTab();
   showToast('✓ Historic data restored & synced', 'ok', 4000);
 }
@@ -1320,7 +1329,140 @@ function restoreHistoric() {
 async function forcePush() { _isSyncing = false; setSyncStatus('syncing', 'PUSHING'); await pushToSupabase(false); }
 async function forcePull() { setSyncStatus('syncing', 'PULLING'); await pullFromSupabase(false); }
 
-function startPolling() { if (pollTimer) clearInterval(pollTimer); pollTimer = setInterval(() => pullFromSupabase(true), POLL_MS); }
+// ===============================================
+//  MERGE PUSH — send local data up WITHOUT overwriting
+// ===============================================
+// `↑ PUSH` REPLACES the cloud row with whatever this device holds. That is the
+// right tool only when this device is known-good and the cloud is known-wrong;
+// everywhere else it is how one blank device erases everything.
+//
+// MERGE PUSH is the safe direction: read the cloud row, take the UNION of it
+// and local state matched on entry id, write the union back. Cloud entries are
+// never dropped or altered. Local entries only fill gaps. Scalars and baselines
+// already in the cloud are left exactly as they are — this only ever ADDS.
+// If the union adds nothing, nothing is written at all.
+const MERGE_LISTS = ['transactions','ccPayments','ccExpenses','efLedger','bufLedger','investments','forecastNotes'];
+const MERGE_MAPS  = ['additionalIncome','balanceAdjust'];
+
+function _unionById(base, extra) {
+  const have = new Set((base || []).map(e => e.id));
+  return (base || []).concat((extra || []).filter(e => e && !have.has(e.id)));
+}
+
+// cloud is the base, local is the addition. Returns what the union would be
+// and exactly how many entries it adds, so the confirm dialog can say so.
+function _buildUnion(cloud, local) {
+  const merged = { ...local, ...cloud };  // cloud wins on every scalar it defines
+  const added = {}; let total = 0;
+  MERGE_LISTS.forEach(k => {
+    const before = (cloud[k] || []).length;
+    merged[k] = _unionById(cloud[k], local[k]);
+    const gain = merged[k].length - before;
+    if (gain) { added[k] = gain; total += gain; }
+  });
+  MERGE_MAPS.forEach(k => {
+    const c = cloud[k] || {}, l = local[k] || {};
+    merged[k] = { ...c };
+    let gain = 0;
+    Object.keys(l).forEach(month => {
+      const before = (c[month] || []).length;
+      merged[k][month] = _unionById(c[month], l[month]);
+      gain += merged[k][month].length - before;
+    });
+    if (gain) { added[k] = gain; total += gain; }
+  });
+  const cn = cloud.notes || {}, ln = local.notes || {};
+  merged.notes = { ...cn };
+  let noteGain = 0;
+  Object.keys(ln).forEach(m => { if (!(m in cn)) { merged.notes[m] = ln[m]; noteGain++; } });
+  if (noteGain) { added.notes = noteGain; total += noteGain; }
+  return { merged, added, total };
+}
+
+async function mergePushToSupabase() {
+  if (!sbReady) { showToast('⚠️ Not connected to Supabase', 'err', 4000); return; }
+  setSyncStatus('syncing', 'MERGING');
+  const base = sbUrl.replace(/\/$/, '');
+  const hdr  = { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey, 'Content-Type': 'application/json' };
+  try {
+    const rows     = await sbFetch('/rest/v1/cnx_data?id=eq.' + ROW_ID + '&select=payload,updated_at');
+    const cloudRow = rows && rows.length ? rows[0] : null;
+    const cloud    = cloudRow && cloudRow.payload ? cloudRow.payload : null;
+    const local    = JSON.parse(JSON.stringify(STATE));
+
+    // No cloud row yet, or an empty one — filling it is not an overwrite.
+    if (!cloud || _payloadIsEmpty(cloud)) {
+      if (_payloadIsEmpty(local)) { setSyncStatus('online','ONLINE'); showToast('Nothing to push — this device is empty too.', 'err', 5000); return; }
+      if (!confirm('The cloud copy is empty.\n\nUpload this device\'s data to it? (' + local.transactions.length + ' transactions and all ledgers)')) { setSyncStatus('online','ONLINE'); return; }
+      local.lastUpdated = syncNow();
+      const res = cloudRow
+        ? await fetch(base + '/rest/v1/cnx_data?id=eq.' + ROW_ID, { method:'PATCH', headers:hdr, body: JSON.stringify({ payload: local, updated_at: new Date().toISOString() }) })
+        : await fetch(base + '/rest/v1/cnx_data',                 { method:'POST',  headers:hdr, body: JSON.stringify({ id: ROW_ID, payload: local, updated_at: new Date().toISOString() }) });
+      if (!res.ok && res.status !== 204) throw new Error('HTTP ' + res.status);
+      STATE.lastUpdated = local.lastUpdated; lsSave();
+      writeCloudBackup(local);
+      setSyncStatus('online','ONLINE'); showToast('✓ Cloud populated from this device', 'ok', 5000);
+      return;
+    }
+
+    const { merged, added, total } = _buildUnion(cloud, local);
+    if (!total) {
+      setSyncStatus('online', 'ONLINE');
+      showToast('✓ Cloud already has everything on this device — nothing written.', 'ok', 5000);
+      return;
+    }
+    const summary = Object.entries(added).map(([k,v]) => '  + ' + v + ' ' + k).join('\n');
+    if (!confirm('Merge this device\'s data INTO the cloud copy?\n\n' + summary +
+                 '\n\nNothing already in the cloud is changed or removed — this only adds the entries above.')) {
+      setSyncStatus('online', 'ONLINE');
+      return;
+    }
+
+    // Re-read immediately before writing: if another device wrote in the
+    // meantime, abort rather than clobber whatever it just added.
+    const recheck = await sbFetch('/rest/v1/cnx_data?id=eq.' + ROW_ID + '&select=updated_at');
+    if (recheck && recheck.length && cloudRow.updated_at && recheck[0].updated_at !== cloudRow.updated_at) {
+      setSyncStatus('online', 'ONLINE');
+      showToast('⚠️ Cloud changed mid-merge — aborted, nothing written. Try again.', 'err', 6000);
+      return;
+    }
+
+    merged.lastUpdated = syncNow();
+    const res = await fetch(base + '/rest/v1/cnx_data?id=eq.' + ROW_ID, {
+      method: 'PATCH', headers: hdr,
+      body: JSON.stringify({ payload: merged, updated_at: new Date().toISOString() })
+    });
+    if (!res.ok && res.status !== 204) { const err = await res.text().catch(() => res.status); throw new Error(res.status + ': ' + err); }
+
+    // Adopt the merged result locally so both ends now agree.
+    STATE = { ...STATE, ...merged };
+    normalizeState(); deriveBalances(); lsSave(); renderCurrentTab();
+    writeCloudBackup(merged);
+    setSyncStatus('online', 'ONLINE');
+    showToast('✓ Merged ' + total + ' entries into the cloud — nothing overwritten', 'ok', 6000);
+  } catch(e) {
+    setSyncStatus('error', 'MERGE FAILED');
+    showToast('⚠️ Merge push failed: ' + (e.message || e), 'err', 6000);
+  }
+}
+
+// v4.7 REALTIME FIX — polling is now never switched off, only slowed down.
+//
+// The old code called stopPolling() on ANY successful phx_reply. Two problems:
+// the 25-second heartbeat also replies "ok", so this fired forever; and more
+// importantly it treated "the websocket JOINED" as proof that "broadcasts will
+// ARRIVE". If the channel joins but no broadcast ever lands — the other device
+// is on an older build, Realtime broadcast is off for the project, a proxy eats
+// the frames — the only remaining sync path had just been deleted, so nothing
+// updated until a full page refresh. That is the "syncs only after multiple
+// refreshes" symptom exactly.
+//
+// Now: LIVE slows the poll to 30s (cheap, websocket is doing the work), and
+// losing the socket restores the 8s poll. There is always a working path.
+function startPolling(ms = POLL_MS) {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(() => pullFromSupabase(true), ms);
+}
 function stopPolling() { if (pollTimer) clearInterval(pollTimer); pollTimer = null; }
 
 let _ws = null, _wsRef = 0, _wsHeartbeat = null, _wsRetries = 0;
@@ -1341,7 +1483,8 @@ function _connectWS() {
     _ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.event === 'phx_reply' && msg.payload?.status === 'ok') { stopPolling(); setSyncStatus('online', 'LIVE'); }
+        // Joined: keep a slow safety poll running rather than killing it.
+        if (msg.event === 'phx_reply' && msg.payload?.status === 'ok') { startPolling(SLOW_POLL_MS); setSyncStatus('online', 'LIVE'); }
         if (msg.event === 'broadcast' && msg.payload?.event === 'state-update') {
           const remote = msg.payload?.payload;
           if (!remote) return;
@@ -1359,7 +1502,7 @@ function _connectWS() {
       } catch(_) {}
     };
     _ws.onerror = () => {};
-    _ws.onclose = () => { clearInterval(_wsHeartbeat); _ws = null; _wsRetries++; setSyncStatus('online', 'ONLINE'); startPolling(); setTimeout(_connectWS, Math.min(3000 * _wsRetries, 30000)); };
+    _ws.onclose = () => { clearInterval(_wsHeartbeat); _ws = null; _wsRetries++; setSyncStatus('online', 'ONLINE'); startPolling(POLL_MS); setTimeout(_connectWS, Math.min(3000 * _wsRetries, 30000)); };
   } catch(e) { _wsRetries++; }
 }
 
@@ -1484,9 +1627,7 @@ function monthHasManualActivity(month) {
 // Also computes a running "deficit" (shortfall vs the original plan caused by
 // net withdrawals) so months after a withdrawal visibly carry the shortfall.
 function buildLiveMDATA() {
-  // Pass 1 — compute each month's actual EF/buffer (logged overrides plan)
-  // WITHOUT any vehicle deduction yet, so the dynamic purchase month can be
-  // determined from the real trajectory (manual entries included).
+  // Pass 1 — each month's actual EF/buffer (a logged month overrides plan).
   const pass1 = PLAN.map(m => {
     const excluded = EXCLUDED_MONTHS.includes(m.key);
     const efLogged  = excluded ? null : getEFLoggedForMonth(m.key);
@@ -1495,16 +1636,10 @@ function buildLiveMDATA() {
     const bufThisMonth = excluded ? 0 : (bufLogged !== null ? bufLogged : m.buf);
     return { m, excluded, efLogged, bufLogged, efThisMonth, bufThisMonth };
   });
-  // v4.5 — the dynamic vehicle-month detector also honors a Buffer opening
-  // correction, so it reflects the corrected trajectory, not the raw plan.
-  const liveVehicleMonth = computeVehicleMonth(pass1.map(r => ({ key: r.m.key, buf: r.bufThisMonth })), STATE.bufOpening);
-
-  // Pass 2 — accumulate, applying the vehicle deduction at whichever month
-  // the dynamic trigger landed on.
+  // Pass 2 — accumulate.
   let cumEF = 0, cumBuf = 0;
   let deficitEF = 0, deficitBuf = 0; // running shortfall vs original plan, caused by net withdrawals
   return pass1.map(({ m, excluded, efLogged, bufLogged, efThisMonth, bufThisMonth }, idx) => {
-    const veh = m.key === liveVehicleMonth ? VEHICLE_COST : 0;
     const isActual  = efLogged !== null || bufLogged !== null;
     const isEFOpeningRow  = !!(STATE.efOpening  && m.key === STATE.efOpening.month);
     const isBufOpeningRow = !!(STATE.bufOpening && m.key === STATE.bufOpening.month);
@@ -1526,20 +1661,18 @@ function buildLiveMDATA() {
     // as computeConfirmed). Previously the snap discarded them, so an entry
     // logged in the baseline month moved the Savings tab's confirmed balance but
     // not the Forecast's cumEF/cumBuf — the two tabs disagreed by exactly that
-    // entry. The deficit uses the same corrected figure, and the plan comparison
-    // now uses the LIVE vehicle month rather than the static plan one, so Buffer
-    // is compared like-for-like.
+    // entry. The deficit uses the same corrected figure.
     const efSnap  = isEFOpeningRow  ? STATE.efOpening.amt  + _keptNetForMonth(STATE.efLedger,  STATE.efOpening,  m.key) : 0;
     const bufSnap = isBufOpeningRow ? STATE.bufOpening.amt + _keptNetForMonth(STATE.bufLedger, STATE.bufOpening, m.key) : 0;
-    if (isEFOpeningRow)  efDeficitThisMonth  = Math.max(_planOnlyThrough(m.key, liveVehicleMonth).planEF  - efSnap,  0);
-    if (isBufOpeningRow) bufDeficitThisMonth = Math.max(_planOnlyThrough(m.key, liveVehicleMonth).planBuf - bufSnap, 0);
+    if (isEFOpeningRow)  efDeficitThisMonth  = Math.max(_planOnlyThrough(m.key).planEF  - efSnap,  0);
+    if (isBufOpeningRow) bufDeficitThisMonth = Math.max(_planOnlyThrough(m.key).planBuf - bufSnap, 0);
     const deficitEFEntering  = deficitEF;
     const deficitBufEntering = deficitBuf;
     deficitEF  = isEFOpeningRow  ? efDeficitThisMonth  : deficitEF  + efDeficitThisMonth;
     deficitBuf = isBufOpeningRow ? bufDeficitThisMonth : deficitBuf + bufDeficitThisMonth;
 
     cumEF += efThisMonth;
-    cumBuf += bufThisMonth - veh;
+    cumBuf += bufThisMonth;
     if (isEFOpeningRow)  cumEF  = efSnap;
     if (isBufOpeningRow) cumBuf = bufSnap;
 
@@ -1550,7 +1683,6 @@ function buildLiveMDATA() {
     if (cumEF >= 50000  && (cumEF - efThisMonth) < 50000)  milestone += '🎯 EF ₹50k ';
     if (cumEF >= 100000 && (cumEF - efThisMonth) < 100000) milestone += '🎯 EF ₹1L ';
     if (cumEF >= 150000 && (cumEF - efThisMonth) < 150000) milestone += '🎯 EF ₹1.5L ';
-    if (veh > 0) milestone += '🏍 Bike Buy ';
     if (m.cc1 === 0 && PLAN[idx-1]?.cc1 > 0) milestone += '✅ CC1 Done ';
     if (m.cc2 === 0 && PLAN[idx-1]?.cc2 > 0) milestone += '✅ CC2 Done ';
     if (m.purchase > 0) milestone += '🛍 Purchase ₹' + (m.purchase/1000) + 'k ';
@@ -1560,7 +1692,7 @@ function buildLiveMDATA() {
     if (bufDeficitThisMonth > 0) milestone += `⚠️ Buf -${fmt(bufDeficitThisMonth)} `;
 
     return {
-      ...m, totalExp, debt, veh,
+      ...m, totalExp, debt,
       ef: efThisMonth, buf: bufThisMonth,
       planEF: m.ef, planBuf: m.buf,
       efAdjust, bufAdjust, efLogged, bufLogged,
@@ -1708,10 +1840,21 @@ function renderOverview() {
   document.getElementById('ov-income-s').textContent = addInc > 0 ? 'Fixed + ' + fmt(addInc) + ' extra' : 'Fixed take-home';
   document.getElementById('ov-exp').textContent = fmt(md.totalExp);
   document.getElementById('ov-exp-s').textContent = md.lbl + ' forecast';
-  document.getElementById('ov-ef').textContent = fmt(md.ef);
-  document.getElementById('ov-ef-s').textContent = 'Plan: ' + md.lbl;
-  document.getElementById('ov-buf').textContent = (md.buf<0?'-':'') + fmt(md.buf);
-  document.getElementById('ov-buf-s').textContent = md.buf >= 0 ? 'Available' : '⚠️ Tight';
+  // v4.8 — these two tiles used to show the SELECTED month's PLAN contribution
+  // ("EF Contribution ₹25,000") while the buckets lower down the same screen
+  // showed the CONFIRMED balance (₹80,000). Two different meanings of the same
+  // words on one screen is what made this tab unreadable. Both now show the
+  // confirmed balance, with the month's plan contribution as the subtitle.
+  const pace = getPaceVsPlan();
+  document.getElementById('ov-pace').innerHTML = _paceSummaryHTML();
+  document.getElementById('ov-ef').textContent = fmt(pace.ef.confirmed);
+  document.getElementById('ov-ef-s').textContent = md.ef > 0
+    ? fmt(md.ef) + ' planned for ' + md.lbl
+    : md.lbl + ' has no EF plan';
+  document.getElementById('ov-buf').textContent = (pace.buf.confirmed<0?'-':'') + fmt(pace.buf.confirmed);
+  document.getElementById('ov-buf-s').textContent = md.buf > 0
+    ? fmt(md.buf) + ' planned for ' + md.lbl
+    : md.lbl + ' has no buffer plan';
   const ccTotal = (STATE.cc1Total || CC1_TOTAL) + (STATE.cc2Total || CC2_TOTAL);
   const ccPaid = STATE.cc1Paid + STATE.cc2Paid;
   const ccOut = Math.max(ccTotal - ccPaid, 0);
@@ -1720,19 +1863,16 @@ function renderOverview() {
   document.getElementById('ov-cc-bar').style.width = ccPct + '%';
   document.getElementById('ov-cc-paid').textContent = 'PAID: ' + fmt(ccPaid);
   document.getElementById('ov-cc-pct').textContent = ccPct.toFixed(1) + '% CLEARED';
-  // v4.4 — the vehicle purchase month is now dynamic (earliest month buffer
-  // hits ₹50k, capped at the November deadline), computed from LIVE data so
-  // the alert reflects reality even though the EF/Buffer figures above stay
-  // plan-only by design.
-  const liveMDForAlert = buildLiveMDATA();
-  const liveVehicleMonth = liveMDForAlert.find(r => r.veh > 0)?.key || VEHICLE_DEADLINE;
   const alerts = [];
-  if (md.buf < 0) alerts.push({ t:'r', m:`⚠️ ${md.lbl} is a tight month. Buffer is -₹${Math.abs(md.buf).toLocaleString('en-IN')}. Stay disciplined.` });
-  if (ccOut <= 0) alerts.push({ t:'g', m:'🎉 Both CC cards cleared! Now accelerate EF and buffer.' });
-  else alerts.push({ t:'w', m:`💳 CC outstanding: ${fmt(ccOut)}. Paying down systematically.` });
-  if (md.key === liveVehicleMonth) alerts.push({ t:'w', m:`🏍 ${md.lbl}: Vehicle purchase month (as soon as buffer hits ₹50k, capped at November). ₹50k from buffer. Confirm buffer is ready.` });
-  if (['2026-10','2026-11','2026-12'].includes(md.key)) alerts.push({ t:'b', m:'🚀 Phase 3 active! EF at ₹' + md.cumEF.toLocaleString('en-IN') + '. Buffer rebuilding.' });
-  alerts.push({ t:'g', m:`📊 Forecast EF by end of ${md.lbl}: ${fmt(md.cumEF)}` });
+  if (md.buf < 0) alerts.push({ t:'r', m:`⚠️ ${md.lbl} is a tight month — the plan runs the buffer ${fmt(md.buf)} negative. Stay disciplined.` });
+  if (ccOut <= 0) alerts.push({ t:'g', m:'🎉 Both cards cleared. Every rupee that was servicing debt is now free for EF and buffer.' });
+  else alerts.push({ t:'w', m:`💳 ${fmt(ccOut)} of card debt left — ${ccPct.toFixed(0)}% cleared so far.` });
+  if (!pace.ef.ahead && !pace.ef.onTrack)  alerts.push({ t:'r', m:`🛡 EF is ${fmt(pace.ef.delta)} short of where the plan expects it by ${fmtM(pace.through)}.` });
+  if (!pace.buf.ahead && !pace.buf.onTrack) alerts.push({ t:'r', m:`💰 Buffer is ${fmt(pace.buf.delta)} short of where the plan expects it by ${fmtM(pace.through)}.` });
+  if (pace.ef.confirmed >= EF_TARGET) alerts.push({ t:'g', m:'🎯 Emergency fund target reached. ₹2L is fully banked.' });
+  if (['2026-10','2026-11','2026-12'].includes(md.key)) alerts.push({ t:'b', m:'🚀 Phase 3 — debt tapering off, contributions stepping up.' });
+  const nextMilestone = [50000,100000,150000,EF_TARGET].find(v => pace.ef.confirmed < v);
+  if (nextMilestone) alerts.push({ t:'b', m:`🎯 Next EF milestone ${fmt(nextMilestone)} — ${fmt(nextMilestone - pace.ef.confirmed)} to go.` });
   document.getElementById('ov-alerts').innerHTML = alerts.slice(0,4).map(a => `<div class="alert al-${a.t}">${a.m}</div>`).join('');
   document.getElementById('ov-log-month').textContent = fmtM(curMonth);
   const logPct = Math.min((loggedTots / md.totalExp) * 100, 120);
@@ -1778,33 +1918,38 @@ function renderOverview() {
   // v4.6 — Overview priority buckets show CONFIRMED EF/Buffer (baseline + logged
   // ledger entries only). See computeConfirmed(). No auto-accrual of plan figures.
   const conf = computeConfirmed();
-  const invTotal = (STATE.investments || []).reduce((s,i) => s + i.amt, 0);
+  const invTotal  = (STATE.investments || []).reduce((s,i) => s + i.amt, 0);
+  const invCount  = (STATE.investments || []).length;
+  // v4.8 — the bike bucket is gone, and the Investments bucket no longer fakes
+  // a "Target: ₹1" just to keep a progress bar from dividing by zero. A bucket
+  // with no meaningful target (target:null) shows the amount and skips the bar.
   const buckets = [
-    { cls:'p0', tag:'P0 · CRITICAL', col:'var(--gn)',  name:'🛡 Emergency Fund', target:EF_TARGET,      saved:conf.ef,                    note:'Confirmed · Target ₹2L' },
-    { cls:'p1', tag:'P1 · ONGOING',  col:'var(--go)',  name:'💰 Buffer Reserve',  target:BUFFER_TARGET, saved:Math.max(conf.buf,0),       note:'Confirmed · Post-bike' },
-    { cls:'p2', tag:'P2 · DYNAMIC',  col:'var(--go)',  name:'🏍 2nd Hand Bike',   target:VEHICLE_COST,  saved:Math.min(Math.max(conf.buf,0), VEHICLE_COST), note:'₹50k from Buffer · ' + fmtM(liveVehicleMonth) },
-    { cls:'p3', tag:'P3 · PORTFOLIO',col:'var(--pu)',  name:'📈 My Investments',  target:Math.max(invTotal,1), saved:invTotal,            note:invTotal>0 ? (STATE.investments||[]).length + ' holding(s) · manual entry' : 'Add holdings on the Investments tab' },
+    { cls:'p0', tag:'P0 · CRITICAL',  col:'var(--gn)', name:'🛡 Emergency Fund',   target:EF_TARGET,     saved:conf.ef,              note:'Confirmed balance' },
+    { cls:'p1', tag:'P1 · ONGOING',   col:'var(--go)', name:'💰 Buffer Reserve',   target:BUFFER_TARGET, saved:Math.max(conf.buf,0), note:'Confirmed balance' },
+    { cls:'p2', tag:'P2 · DEBT',      col:'var(--rd)', name:'💳 Card Clearance',   target:ccTotal,       saved:ccPaid,               note: ccOut > 0 ? fmt(ccOut) + ' still owed' : 'Cleared ✓' },
+    { cls:'p3', tag:'P3 · PORTFOLIO', col:'var(--pu)', name:'📈 My Investments',   target:null,          saved:invTotal,
+      note: invCount ? invCount + (invCount===1?' holding':' holdings') + ' · manual' : 'Add holdings on the Investments tab' },
   ];
   document.getElementById('ov-pbuckets').innerHTML = buckets.map(b => {
-    const pct = Math.min((b.saved/b.target)*100, 100);
+    const hasTarget = b.target != null && b.target > 0;
+    const pct = hasTarget ? Math.min((b.saved/b.target)*100, 100) : 0;
     return `<div class="p-card ${b.cls}">
       <div class="pc-tag" style="color:${b.col}">${b.tag}</div>
       <div class="pc-name">${b.name}</div>
-      <div class="pc-tgt">Target: ${fmt(b.target)}</div>
+      <div class="pc-tgt">${hasTarget ? 'Target: ' + fmt(b.target) : 'No target — tracked as a total'}</div>
       <div class="pc-sv" style="color:${b.col}">${fmt(b.saved)}</div>
-      <div class="pb"><div class="pbf" style="width:${pct}%;background:${b.col}"></div></div>
-      <div class="pc-foot"><span>${pct.toFixed(0)}%</span><span style="color:var(--t3)">${b.note}</span></div>
+      ${hasTarget ? `<div class="pb"><div class="pbf" style="width:${pct}%;background:${b.col}"></div></div>` : '<div style="height:5px"></div>'}
+      <div class="pc-foot"><span>${hasTarget ? pct.toFixed(0) + '%' : ''}</span><span style="color:var(--t3)">${b.note}</span></div>
     </div>`;
   }).join('');
   const tl = [
     { dt:'Apr–May 2026', t:'Phase 1 — Excluded Months', d:'April & May not counted for EF & Buffer. CC2: ₹35k cleared in April. June is the true opening.' },
     { dt:'Jun 2026', t:'Opening Month', d:'CC1: ₹17k/mo (₹12k friend + ₹5k card). ₹10k/mo purchase fund. EF opens ₹10k. Buffer opens ₹0.' },
     { dt:'Jul–Sep 2026', t:'Acceleration Phase', d:'CC1 back to ₹12k. Purchase done. EF: ₹25k/mo. Buffer: ₹12.7k/mo. EF crosses ₹50k 🎯 then ₹1L 🎯' },
-    { dt: fmtM(liveVehicleMonth) + ' 2026', t:'🏍 Buy the Bike', d:'₹50k from buffer, once buffer actually holds it. Buffer resets.' },
     { dt:'Oct 2026', t:'CC1 Final Payment', d:'₹11k to friend — CC1 cleared ✅. EF: ₹26k/mo.' },
     { dt:'Nov 2026', t:'Major Relief', d:'CC1 done. EF: ₹30k/mo. Buffer: ₹19.7k/mo. EF crosses ₹1.5L 🎯' },
-    { dt:'Dec 2026', t:'Year-End Strong', d:'CC2 done ✅. EF: ₹35k/mo. Cumulative EF ₹1,86,000. Buffer net rebuilt.' },
-    { dt:'Jan 2027', t:'Investment Mode', d:'Plan RE Himalayan SIP. ₹8k/mo Balanced Adv Fund.' },
+    { dt:'Dec 2026', t:'Year-End Strong', d:'CC2 done ✅. EF: ₹35k/mo. Cumulative EF ₹1,86,000.' },
+    { dt:'Jan 2027', t:'Investment Mode', d:'Debt-free. Redirect the freed CC payments into EF top-up and the investment portfolio.' },
   ];
   document.getElementById('ov-timeline').innerHTML = tl.map((t,i) => `
     <div style="display:flex;gap:9px;margin-bottom:11px">
@@ -2010,8 +2155,6 @@ function deriveBalances() {
   STATE.cc2Total = CC2_TOTAL + cc2Expenses;
   STATE.cc1Paid = Math.min(cc1Payments, STATE.cc1Total);
   STATE.cc2Paid = Math.min(cc2Payments, STATE.cc2Total);
-  STATE.bikeAmt = (STATE.bikeLog||[]).reduce((s,e)=>s+e.amt,0);
-  STATE.reAmt   = (STATE.reLog||[]).reduce((s,e)=>s+e.amt,0);
 }
 
 function getAdditionalIncome(month) {
@@ -2484,23 +2627,63 @@ function _ledgerListHTML(entries, delFn, color, baseline) {
 // adjustments). v4.1 fix: the old version computed this as cumEF − total
 // efAdjust across every month, which broke when adjustments were logged
 // against future months.
-// v4.7 — vehicleMonth is now a parameter. buildLiveMDATA passes the LIVE
-// (dynamically detected) purchase month so the plan comparison it makes uses
-// the same ₹50k timing as the live series; callers that want the pure static
-// plan baseline can omit it.
-function _planOnlyThrough(targetMonth, vehicleMonth) {
-  const vm = vehicleMonth || PLAN_VEHICLE_MONTH;
+function _planOnlyThrough(targetMonth) {
   let planEF = 0, planBuf = 0;
   for (const m of PLAN) {
     if (EXCLUDED_MONTHS.includes(m.key)) { if (m.key === targetMonth) break; continue; }
-    const veh = m.key === vm ? VEHICLE_COST : 0;
     planEF += m.ef;
-    planBuf += m.buf - veh;
+    planBuf += m.buf;
     if (m.key === targetMonth) break;
   }
   return { planEF, planBuf };
 }
 function _planOnlyThroughReal() { return _planOnlyThrough(getCurrentRealMonth()); }
+
+// ===============================================
+//  AM I AHEAD OR BEHIND?
+// ===============================================
+// Confirmed balance vs what the plan says you should be holding. Measured
+// through the last CLOSED month, never the month in progress — comparing a
+// half-finished September against September's full target would report
+// "behind" for four weeks of every month, which is noise, not signal.
+function _lastClosedMonth() {
+  const idx = PLAN.findIndex(m => m.key === getCurrentRealMonth());
+  if (idx <= 0) return OPENING_MONTH;
+  const prev = PLAN[idx - 1].key;
+  return prev < OPENING_MONTH ? OPENING_MONTH : prev;   // never measure against an excluded month
+}
+
+// { ef:{confirmed,plan,delta,ahead,onTrack}, buf:{…}, through:'2026-08' }
+function getPaceVsPlan() {
+  const through = _lastClosedMonth();
+  const conf    = computeConfirmed();
+  const { planEF, planBuf } = _planOnlyThrough(through);
+  const mk = (confirmed, plan) => {
+    const delta = confirmed - plan;
+    return { confirmed, plan, delta: Math.abs(delta), ahead: delta > 0, onTrack: delta === 0 };
+  };
+  return { ef: mk(conf.ef, planEF), buf: mk(conf.buf, planBuf), through };
+}
+
+// One line, plain language. cls maps to the existing alert styles.
+function _paceLineHTML(label, p, through) {
+  if (p.onTrack) return `<div class="alert al-b" style="margin-bottom:8px">✅ <span>${label} is exactly on plan — ${fmt(p.confirmed)} confirmed through ${fmtM(through)}.</span></div>`;
+  const cls  = p.ahead ? 'al-g' : 'al-r';
+  const icon = p.ahead ? '🟢' : '🔴';
+  const word = p.ahead ? 'ahead of' : 'behind';
+  return `<div class="alert ${cls}" style="margin-bottom:8px">${icon} <span><strong>${label}: you're ${fmt(p.delta)} ${word} plan.</strong> ${fmt(p.confirmed)} confirmed vs ${fmt(p.plan)} planned through ${fmtM(through)}.</span></div>`;
+}
+
+// Combined single line for the Forecast tab.
+function _paceSummaryHTML() {
+  const { ef, buf, through } = getPaceVsPlan();
+  const part = (label, p) => `${label} ${p.onTrack ? 'on plan' : fmt(p.delta) + (p.ahead ? ' ahead' : ' behind')}`;
+  const bothAhead  = (ef.ahead || ef.onTrack) && (buf.ahead || buf.onTrack);
+  const bothBehind = !ef.ahead && !ef.onTrack && !buf.ahead && !buf.onTrack;
+  const cls  = bothAhead ? 'al-g' : bothBehind ? 'al-r' : 'al-w';
+  const icon = bothAhead ? '🟢' : bothBehind ? '🔴' : '🟡';
+  return `<div class="alert ${cls}" style="margin-bottom:13px">${icon} <span><strong>Against plan through ${fmtM(through)}: ${part('EF', ef)} · ${part('Buffer', buf)}.</strong> Measured on confirmed balances — the month in progress isn't counted yet.</span></div>`;
+}
 
 function renderSavings() {
   buildStrip('sv-strip', renderSavings);
@@ -2512,7 +2695,6 @@ function renderSavings() {
   const bufAnchorMonth = STATE.bufAnchorMonth || realMonth;
   const efAnchorIdx  = liveMD.findIndex(m => m.key === efAnchorMonth);
   const bufAnchorIdx = liveMD.findIndex(m => m.key === bufAnchorMonth);
-  const liveVehicleMonth = liveMD.find(r => r.veh > 0)?.key || VEHICLE_DEADLINE;
   const { planEF }  = _planOnlyThrough(efAnchorMonth);
   const { planBuf } = _planOnlyThrough(bufAnchorMonth);
   const adjLblTxt = 'Applies to: ' + fmtM(curMonth) + (EXCLUDED_MONTHS.includes(curMonth) ? ' (EXCLUDED)' : '');
@@ -2540,6 +2722,9 @@ function renderSavings() {
     efBal >= EF_TARGET ? '🎯 Target reached!' :
     monthsTo2L !== null ? monthsTo2L + ' month' + (monthsTo2L===1?'':'s') + ' to ₹2L (if plan followed)' :
     '₹2L lands beyond Dec 2026 (if plan followed)';
+  const pace = getPaceVsPlan();
+  document.getElementById('ef-pace').innerHTML  = _paceLineHTML('EF', pace.ef, pace.through);
+  document.getElementById('buf-pace').innerHTML = _paceLineHTML('Buffer', pace.buf, pace.through);
   document.getElementById('ef-source-breakdown').innerHTML = `
     <div style="background:var(--s2);border:1px solid var(--b1);border-radius:7px;padding:9px;margin-bottom:8px">
       <div style="display:flex;justify-content:space-between;font-family:var(--mn);font-size:10px;color:var(--t2);margin-bottom:3px">
@@ -2561,7 +2746,7 @@ function renderSavings() {
   const bufPct = bufForecastTotal > 0 ? Math.min(Math.max((bufBal/bufForecastTotal)*100, 0), 100) : 0;
   document.getElementById('buf-balance').textContent = (bufBal<0?'-':'') + fmt(bufBal);
   document.getElementById('buf-balance').style.color = bufBal < 0 ? 'var(--rd)' : 'var(--go)';
-  document.getElementById('buf-forecast-lbl').textContent = 'Forecast total by Dec (if plan met): ' + (bufForecastTotal<0?'-':'') + fmt(bufForecastTotal) + ' (after ₹50k bike, projected ' + fmtM(liveVehicleMonth) + ')';
+  document.getElementById('buf-forecast-lbl').textContent = 'Forecast total by Dec (if plan met): ' + (bufForecastTotal<0?'-':'') + fmt(bufForecastTotal);
   document.getElementById('buf-bar').style.width = bufPct + '%';
   document.getElementById('buf-pct-lbl').textContent = bufPct.toFixed(1) + '% of forecast';
   document.getElementById('buf-total-lbl').textContent = 'Forecast: ' + (bufForecastTotal<0?'-':'') + fmt(bufForecastTotal);
@@ -2571,11 +2756,10 @@ function renderSavings() {
         <span>CONFIRMED (baseline${STATE.bufBaselineMonth?' as of '+fmtM(STATE.bufBaselineMonth):''} + logged entries)</span><span style="color:${bufBal>=0?'var(--go)':'var(--rd)'}">${bufBal<0?'-':''}${fmt(bufBal)}</span></div>
       <div style="display:flex;justify-content:space-between;font-family:var(--mn);font-size:10px;color:var(--t2)">
         <span>FORECAST (if plan is met, thru ${fmtM(bufAnchorMonth)})</span><span style="color:var(--ac)">${STATE.bufForecast<0?'-':''}${fmt(STATE.bufForecast)}</span></div>
-      <div style="font-size:9px;color:var(--t3);margin-top:5px;line-height:1.4">The ₹50k bike deduction only hits the confirmed number once you log an actual buffer withdrawal for it — it's not auto-subtracted.</div>
+      <div style="font-size:9px;color:var(--t3);margin-top:5px;line-height:1.4">Nothing is auto-deducted from the confirmed number — it moves only when you log an actual buffer entry below.</div>
     </div>
     ${_ledgerListHTML(STATE.bufLedger, 'deleteBufEntry', 'var(--go)', STATE.bufOpening)}`;
-  document.getElementById('buf-breakdown').innerHTML = bufAnchorMonth >= liveVehicleMonth
-    ? `<div class="alert al-w" style="margin-top:8px">🏍 Plan projects a ₹50,000 bike purchase around ${fmtM(liveVehicleMonth)} — this won't reduce your CONFIRMED buffer until you actually log the withdrawal.</div>` : '';
+  document.getElementById('buf-breakdown').innerHTML = '';
 
   // ── Monthly log vs plan ──
   const activeMonths = liveMD.filter(m => !m.excluded);
@@ -2590,7 +2774,6 @@ function renderSavings() {
       <div style="font-family:var(--mn);font-size:10px;flex:0 0 130px;text-align:right">
         <span style="color:${actual<0?'var(--rd)':color}">${actual<0?'-':''}${fmt(actual)}</span>
         <span style="color:var(--t3)"> / ${fmt(plan)}</span>
-        ${m.veh>0 && color==='var(--go)' ? '<span style="color:var(--go)"> 🏍</span>':''}
       </div>
     </div>`;
   };
@@ -2846,7 +3029,6 @@ function renderForecast() {
   const debtTotal = CC1_TOTAL + CC2_TOTAL;
   const debtPaidBySep = liveMD.filter(m => m.key <= '2026-09').reduce((s,m) => s + m.cc1 + m.cc2, 0);
   const conf = computeConfirmed();
-  const fcVehicleMonth = liveMD.find(r => r.veh > 0)?.key || VEHICLE_DEADLINE;
 
   // ── Top stats — v4.7: the two confirmed tiles are the SAME numbers the
   // EF & Buffer tab shows in its headline (both read computeConfirmed()), so
@@ -2858,6 +3040,7 @@ function renderForecast() {
     <div class="stat"><div class="sl">Year-end EF (forecast)</div><div class="sv">${fmt(dec.cumEF)}</div><div class="ss">${((dec.cumEF/EF_TARGET)*100).toFixed(0)}% of target, IF plan is met</div></div>`;
 
   // ── Recovery banner ──
+  document.getElementById('fc-pace').innerHTML = _paceSummaryHTML();
   const bannerEl = document.getElementById('fc-recovery-banner');
   if (!rec.hasDeficit) {
     bannerEl.innerHTML = '<div class="alert al-g" style="margin-bottom:13px">✅ On track — no withdrawals eating into the plan. EF & Buffer accruing on schedule.</div>';
@@ -2928,11 +3111,10 @@ function renderForecast() {
     sumLine('Income (Apr–Sep)', fmt(sixMD.reduce((s,m)=>s+INCOME+getAdditionalIncome(m.key),0)), 'na') +
     sumLine('Expenses', fmt(sixMD.reduce((s,m)=>s+m.totalExp,0)), 'nr') +
     sumLine('EF accrued', fmt(sep.cumEF), 'ng') +
-    sumLine('Buffer (post-bike)', (sep.cumBuf<0?'-':'')+fmt(sep.cumBuf), 'ngo') +
+    sumLine('Buffer accrued', (sep.cumBuf<0?'-':'')+fmt(sep.cumBuf), 'ngo') +
     sumLine('Debt paid', fmt(Math.min(debtPaidBySep, debtTotal)) + ' / ' + fmt(debtTotal), 'nr') +
     // v4.7 — was hardcoded to September; now follows the dynamically detected
     // purchase month, matching the table, the Savings tab and the Overview.
-    sumLine('Bike', '🏍 ' + (fcVehicleMonth <= '2026-09' ? 'Projected ' + fmtM(fcVehicleMonth) : 'Not yet — projected ' + fmtM(fcVehicleMonth)) + ' (₹50k)', 'ngo') +
     sumLine('Confirmed EF / Buffer today', fmt(conf.ef) + ' / ' + (conf.buf<0?'-':'') + fmt(conf.buf), 'n');
   document.getElementById('fc-ye-detail').innerHTML =
     sumLine('Income (Apr–Dec)', fmt(sumInc), 'na') +
@@ -2941,7 +3123,7 @@ function renderForecast() {
     sumLine('Buffer year-end', (dec.cumBuf<0?'-':'')+fmt(dec.cumBuf), 'ngo') +
     sumLine('CC1', '✅ Cleared Oct', 'ng') +
     sumLine('CC2', '✅ Cleared Dec', 'ng') +
-    sumLine('2027 launchpad', '₹8k/mo Himalayan SIP', 'n');
+    sumLine('2027 launchpad', 'Debt-free — redirect CC payments into EF & investments', 'n');
 
   // ── Charts ──
   const labels = liveMD.map(m => m.lbl);
@@ -2959,7 +3141,6 @@ function renderForecast() {
   const flags = [];
   if (rec.hasDeficit && rec.remainingMonths > 0) flags.push({t:'r', m:`⚠️ Running deficit of ${fmt(rec.efDeficit + rec.bufDeficit)} vs plan — recovery spread over ${rec.remainingMonths} month(s).`});
   if (rec.hasDeficit && rec.remainingMonths === 0) flags.push({t:'r', m:'⚠️ Deficit with zero recovery months left in 2026 — plan a one-time top-up or carry into 2027.'});
-  flags.push({t:'w', m:'🏍 The bike purchase month shown in the table is a PLAN projection — it only becomes real once you log the buffer withdrawal.'});
   flags.push({t:'w', m:'💳 Oct ₹11k is the FINAL CC1 payment — don\'t skip it or the friend-repayment schedule slips.'});
   if (dec.cumEF < EF_TARGET) flags.push({t:'b', m:`📊 Forecast year-end EF lands at ${fmt(dec.cumEF)} IF the plan is followed — ₹2L target completes in early 2027 at the Dec run-rate.`});
   flags.push({t:'b', m:'🔒 Apr & May are excluded months — EF/Buffer entries there are ignored by design.'});
@@ -3010,7 +3191,7 @@ function handleImport(ev) {
       const data = JSON.parse(e.target.result);
       STATE = { ...STATE, ...data };
       normalizeState();
-      STATE.lastUpdated = Date.now();
+      STATE.lastUpdated = syncNow();
       deriveBalances(); save(); renderCurrentTab();
       showToast('✓ Imported — data restored & synced', 'ok');
     } catch(err) { showToast('❌ Import failed: invalid JSON', 'err', 5000); }
@@ -3034,8 +3215,6 @@ function resetData() {
     ccExpenses: [],
     efAdjust: 0, bufAdjust: 0,
     efLedger: [], bufLedger: [],
-    bikeLog: [], reLog: [],
-    bikeAmt: 0, reAmt: 0,
     investments: [],
     notes: {},
     priorities: { p0:0, p1:0, p2:0, p3:0 },
@@ -3044,7 +3223,7 @@ function resetData() {
     balanceAdjust: {},
     efOpening: null,
     bufOpening: null,
-    lastUpdated: Date.now()
+    lastUpdated: syncNow()
   };
   deriveBalances(); save(); renderCurrentTab();
   showToast('✓ All data reset', 'ok');
