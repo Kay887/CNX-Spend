@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="CNX">
-<title>CNX — Kay's Financial OS · v4.5</title>
+<title>CNX — Kay's Financial OS · v4.7</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -166,13 +166,28 @@ select.inp{appearance:none;cursor:pointer}
 .cc-bar-fill{position:absolute;bottom:0;left:0;right:0;border-radius:2px 2px 0 0;transition:height .5s ease}
 .cc-bar-lbl{font-size:7px;color:var(--t3);font-family:var(--mn);text-align:center;margin-top:3px}
 
-/* -- GOAL -- */
-.goal-big{background:linear-gradient(135deg,rgba(240,165,0,.08),rgba(255,106,42,.06));border:1px solid rgba(240,165,0,.2);border-radius:var(--rad);padding:20px;text-align:center}
-.goal-icon{font-size:40px;margin-bottom:8px}
-.goal-name{font-family:var(--mn);font-size:13px;color:var(--go);letter-spacing:2px;margin-bottom:4px}
-.goal-target{font-size:11px;color:var(--t2);margin-bottom:14px}
-.goal-amt{font-family:var(--mn);font-size:30px;font-weight:700;color:var(--go);margin-bottom:4px}
-.goal-ready{background:var(--gn);color:#000;font-family:var(--mn);font-size:11px;font-weight:700;padding:8px 20px;border-radius:6px;margin-top:12px;display:inline-block;letter-spacing:1px;animation:pulse 1.5s ease infinite}
+/* -- INVESTMENTS & PIE CHARTS -- */
+.inv-row{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid rgba(26,34,51,.5)}
+.inv-row.editing{background:rgba(0,168,255,.06);border-radius:6px;padding-left:6px}
+.inv-nm{font-size:12px;font-weight:600;color:var(--t1)}
+.inv-sub{font-size:9px;color:var(--t3);font-family:var(--mn);margin-top:2px}
+.inv-amt{font-family:var(--mn);font-size:13px;font-weight:700;color:var(--gn);white-space:nowrap}
+.inv-btn{background:transparent;border:1px solid var(--b1);color:var(--t3);border-radius:5px;font-size:10px;padding:3px 7px;cursor:pointer;font-family:var(--mn)}
+.inv-btn:hover{color:var(--ac);border-color:var(--ac)}
+.inv-btn.del:hover{color:var(--rd);border-color:var(--rd)}
+.pie-wrap{position:relative;width:150px;height:150px;margin:0 auto 10px;flex:0 0 150px}
+.pie-svg{width:150px;height:150px;display:block}
+.pie-seg{transition:opacity .18s}.pie-seg:hover{opacity:.75}
+.pie-ctr{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.pie-ctr-v{font-family:var(--mn);font-size:15px;font-weight:700;color:var(--t1)}
+.pie-ctr-l{font-family:var(--mn);font-size:8px;letter-spacing:1px;color:var(--t3);margin-top:2px}
+.pie-lg{display:flex;flex-direction:column;gap:4px}
+.pie-lg-i{display:flex;align-items:center;gap:6px;font-size:10px}
+.pie-dot{width:8px;height:8px;border-radius:2px;flex:0 0 8px}
+.pie-lg-l{flex:1;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pie-lg-v{font-family:var(--mn);color:var(--t1);font-weight:600}
+.pie-lg-p{font-family:var(--mn);color:var(--t3);flex:0 0 32px;text-align:right}
+.pie-empty{text-align:center;color:var(--t3);font-size:10px;font-family:var(--mn);padding:34px 0}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,217,104,.4)}50%{box-shadow:0 0 0 8px rgba(0,217,104,0)}}
 
 /* -- CHART BARS -- */
@@ -291,7 +306,7 @@ create policy "public rw" on cnx_data for all using (true);</code>
 <div class="hdr">
   <div>
     <div class="logo">CNX</div>
-    <div class="logo-sub">KAY'S FINANCIAL OS · APR–DEC 2026 · v4.5</div>
+    <div class="logo-sub">KAY'S FINANCIAL OS · APR–DEC 2026 · v4.7</div>
   </div>
   <div class="hdr-r">
     <div class="phase-tag" id="phase-tag">PHASE 1</div>
@@ -317,7 +332,7 @@ create policy "public rw" on cnx_data for all using (true);</code>
   <button class="nb" onclick="go('tracker',this)" title="Press 3"><span class="ni">🧾</span>TRACKER</button>
   <button class="nb" onclick="go('cards',this)" title="Press 4"><span class="ni">💳</span>CC</button>
   <button class="nb" onclick="go('savings',this)" title="Press 5"><span class="ni">🛡</span>EF & BUFFER</button>
-  <button class="nb" onclick="go('goals',this)" title="Press 6"><span class="ni">🏍</span>GOALS</button>
+  <button class="nb" onclick="go('invest',this)" title="Press 6"><span class="ni">📈</span>MY INVESTMENTS</button>
   <button class="nb" onclick="go('forecast',this)" title="Press 7"><span class="ni">📅</span>FORECAST</button>
 </div>
 
@@ -692,71 +707,50 @@ create policy "public rw" on cnx_data for all using (true);</code>
   </div>
 </div>
 
-<!-- TAB 6 · GOALS -->
-<div class="tab" id="tab-goals">
-  <div class="sec-t">Goals & Desires</div>
-  <div class="sec-s">Track what you're building toward. The bike is first. The Himalayan is next.</div>
+<!-- TAB 6 · MY INVESTMENTS -->
+<div class="tab" id="tab-invest">
+  <div class="sec-t">My Investments</div>
+  <div class="sec-s">A standalone, manually maintained portfolio. Every entry here is typed in by hand — nothing is auto-calculated, and nothing here feeds (or is fed by) EF, Buffer, the Tracker or the Forecast. Add, edit or delete holdings freely as your positions change.</div>
+  <div class="g4" style="margin-bottom:13px" id="inv-stats"></div>
   <div class="g2" style="margin-bottom:13px">
     <div class="card">
-      <div class="goal-big">
-        <div class="goal-icon">🏍</div>
-        <div class="goal-name">2ND HAND BIKE</div>
-        <div class="goal-target">Target: ₹50,000 · Source: Buffer · Buy: September 2026</div>
-        <div class="goal-amt" id="bike-amt">₹0</div>
-        <div style="font-size:10px;color:var(--t2);margin-bottom:12px" id="bike-pct-lbl">0% of ₹50,000</div>
-        <div class="pb h10" style="margin-bottom:12px">
-          <div class="pbf" id="bike-bar" style="background:linear-gradient(90deg,var(--go),var(--or));width:0%"></div>
-        </div>
-        <div id="bike-ready-wrap"></div>
+      <div class="ct"><div class="ct-l" id="inv-form-title">Add Investment</div><span class="bdg bdg-b" style="font-size:8px">MANUAL ENTRY</span></div>
+      <div class="fl"><label class="lbl">Name</label><input class="inp" id="inv-name" placeholder="e.g. Parag Parikh Flexi Cap"/></div>
+      <div class="fl"><label class="lbl">Amount (₹)</label><div class="pfx"><span class="px">₹</span><input class="inp" type="number" id="inv-amt" placeholder="e.g. 25000"/></div></div>
+      <div class="fl"><label class="lbl">Type</label>
+        <select class="inp" id="inv-type">
+          <option value="Mutual Fund">📊 Mutual Fund</option>
+          <option value="Stocks">📈 Stocks</option>
+          <option value="Gold">🥇 Gold</option>
+          <option value="FD / RD">🏦 FD / RD</option>
+          <option value="PPF / EPF / NPS">🏛 PPF / EPF / NPS</option>
+          <option value="Bonds">📜 Bonds</option>
+          <option value="Crypto">₿ Crypto</option>
+          <option value="Real Estate">🏠 Real Estate</option>
+          <option value="Other">📦 Other</option>
+        </select>
       </div>
-      <div class="div"></div>
-      <div style="font-size:11px;color:var(--t2);line-height:1.7">
-        Buffer opens June at <strong style="color:var(--go)">₹0</strong> (EF opens at ₹10,000), then ₹12,700/month from July.
-        By September cumulative buffer (before purchase) reaches <strong style="color:var(--go)">~₹38,100</strong>.
-        Buy the bike and rebuild buffer through year-end to <strong style="color:var(--go)">~₹45,200</strong>.
+      <div class="fl"><label class="lbl">Note (optional)</label><input class="inp" id="inv-note" placeholder="e.g. SIP since Jan 2026"/></div>
+      <div style="display:flex;gap:7px">
+        <button class="btn btn-p" style="flex:1" id="inv-save-btn" onclick="saveInvestment()">ADD INVESTMENT</button>
+        <button class="btn btn-d" id="inv-cancel-btn" style="display:none" onclick="cancelInvestEdit()">CANCEL</button>
       </div>
-      <div style="display:flex;gap:7px;margin-top:10px">
-        <div class="pfx" style="flex:1"><span class="px">₹</span><input class="inp" type="number" id="bike-inp" placeholder="Amount saved"/></div>
-        <button class="btn btn-go" onclick="updateBike()">ADD</button>
-      </div>
-      <div class="fl mt" style="margin-bottom:0"><input class="inp" id="bike-note" placeholder="Note e.g. Cash set aside, Buffer transfer..."/></div>
-      <div class="div"></div>
-      <div class="ct" style="margin-bottom:6px"><div class="ct-l">Contribution History</div></div>
-      <div class="tx-list" id="bike-history"></div>
+      <div style="font-size:9px;color:var(--t3);margin-top:8px;line-height:1.5">Enter the <strong style="color:var(--t1)">current value</strong> of the holding. Editing an entry overwrites it — there's no contribution history, this is a live snapshot of what you hold.</div>
     </div>
     <div class="card">
-      <div class="goal-big" style="background:linear-gradient(135deg,rgba(157,111,255,.07),rgba(255,106,42,.05));border-color:rgba(157,111,255,.2)">
-        <div class="goal-icon">🏔</div>
-        <div class="goal-name" style="color:var(--pu)">ROYAL ENFIELD HIMALAYAN</div>
-        <div class="goal-target">Target: ₹5,00,000 · Starts: Jan 2027 · Est: 2030–31</div>
-        <div class="goal-amt" style="color:var(--pu)" id="re-amt-disp">₹0</div>
-        <div style="font-size:10px;color:var(--t2);margin-bottom:12px" id="re-pct-lbl">0% of ₹5,00,000</div>
-        <div class="pb h10" style="margin-bottom:12px">
-          <div class="pbf" id="re-bar" style="background:linear-gradient(90deg,var(--pu),var(--or));width:0%"></div>
-        </div>
-        <div style="background:rgba(157,111,255,.1);border:1px solid rgba(157,111,255,.2);border-radius:6px;padding:8px;font-size:10px;color:var(--t2);line-height:1.6;text-align:left">
-          💡 <strong style="color:var(--pu)">Post-December plan:</strong> Start ₹8,000/month SIP in Balanced Advantage Fund.
-          At 11% p.a. over 4 years = ~₹5.2L corpus. Planning begins Jan 2027.
-        </div>
-      </div>
-      <div class="div"></div>
-      <div style="font-size:11px;color:var(--t2);line-height:1.7;margin-bottom:10px">
-        This goal is <strong style="color:var(--pu)">on hold until CC debt is cleared</strong>.
-        Focus for 2026 is EF + Buffer only. Himalayan fund activates in January 2027.
-      </div>
-      <div style="display:flex;gap:7px;margin-top:4px">
-        <div class="pfx" style="flex:1"><span class="px">₹</span><input class="inp" type="number" id="re-inp" placeholder="Log SIP contribution (Jan 2027+)"/></div>
-        <button class="btn" style="background:rgba(157,111,255,.1);border:1px solid rgba(157,111,255,.3);color:var(--pu)" onclick="updateRE()">LOG</button>
-      </div>
-      <div class="fl mt" style="margin-bottom:0"><input class="inp" id="re-note" placeholder="Note e.g. Jan 2027 SIP, Lump sum..."/></div>
-      <div class="div"></div>
-      <div class="ct" style="margin-bottom:6px"><div class="ct-l">Contribution History</div></div>
-      <div class="tx-list" id="re-history"></div>
+      <div class="ct"><div class="ct-l">Holdings</div><span class="bdg bdg-b" style="font-size:8px" id="inv-count">0</span></div>
+      <div class="tx-list" id="inv-list"></div>
     </div>
   </div>
-  <div class="card">
-    <div class="ct"><div class="ct-l">Buffer Build-Up → Bike Purchase Timeline</div></div>
-    <div id="bike-timeline"></div>
+  <div class="sec-t" style="margin-top:4px">Distribution</div>
+  <div class="sec-s">Four independent views: your manual portfolio, confirmed EF, confirmed Buffer, and everything you've actually logged as spend in the Tracker.</div>
+  <div class="g2" style="margin-bottom:13px">
+    <div class="card"><div class="ct"><div class="ct-l">1 · Investments by Holding</div></div><div id="pie-inv"></div></div>
+    <div class="card"><div class="ct"><div class="ct-l">2 · Emergency Fund</div><span class="bdg bdg-g" style="font-size:8px">CONFIRMED</span></div><div id="pie-ef"></div></div>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="ct"><div class="ct-l">3 · Buffer</div><span class="bdg bdg-w" style="font-size:8px">CONFIRMED</span></div><div id="pie-buf"></div></div>
+    <div class="card"><div class="ct"><div class="ct-l">4 · Overall Expenditure</div><span class="bdg bdg-b" style="font-size:8px">LOGGED</span></div><div id="pie-exp"></div></div>
   </div>
 </div>
 
@@ -856,6 +850,7 @@ const INCOME = 149000;
 const CC1_TOTAL = 93000;
 const CC2_TOTAL = 95000;
 const EF_TARGET = 200000;
+const BUFFER_TARGET = 100000; // post-bike buffer reserve goal (was hardcoded in the Overview buckets)
 const VEHICLE_COST = 50000;
 // v4.4 — the vehicle purchase is no longer pinned to a fixed month. It now
 // fires in the FIRST month cumulative buffer (before deduction) reaches
@@ -906,8 +901,9 @@ let STATE = {
   ccExpenses: [],
   efAdjust: 0, bufAdjust: 0,
   efLedger: [], bufLedger: [],
-  bikeLog: [], reLog: [],
+  bikeLog: [], reLog: [],   // legacy Goals-tab data — retained so nothing is lost, no longer surfaced
   bikeAmt: 0, reAmt: 0,
+  investments: [],          // v4.7 — My Investments: manual portfolio [{id,name,amt,type,note,date,updated}]
   notes: {},
   priorities: { p0:0, p1:0, p2:0, p3:0 },
   forecastNotes: [],
@@ -916,10 +912,12 @@ let STATE = {
   // v4.5 — opening-balance correction: declares the ACTUAL EF/Buffer total as of
   // a given month, overriding whatever the computed trajectory says. Everything
   // from that month forward recalculates from this baseline; prior drift is
-  // cleared. Pre-set per Kay's 21-Jul-2026 instruction: EF ₹40,000 / Buffer
-  // ₹10,000 as of July 2026 ("current"). Clear via the Savings tab to remove.
-  efOpening: { month: '2026-07', amt: 40000 },
-  bufOpening: { month: '2026-07', amt: 10000 },
+  // cleared. v4.7 — re-declared as of AUGUST 2026: EF ₹80,000 / Buffer ₹30,000
+  // (August is the last CLOSED month — salary arrives a month in arrears, see
+  // SALARY_LAG_MONTHS). Clear or re-set via the EF & Buffer tab.
+  efOpening: { ...DEFAULT_EF_OPENING },
+  bufOpening: { ...DEFAULT_BUF_OPENING },
+  openingRev: null,    // v4.7 — stamps which declared baseline revision has been applied
   lastUpdated: 0
 };
 let curMonth = '2026-06';
@@ -1088,6 +1086,7 @@ function normalizeState() {
   STATE.bufLedger        = Array.isArray(STATE.bufLedger)        ? STATE.bufLedger        : [];
   STATE.bikeLog          = Array.isArray(STATE.bikeLog)          ? STATE.bikeLog          : [];
   STATE.reLog            = Array.isArray(STATE.reLog)            ? STATE.reLog            : [];
+  STATE.investments      = Array.isArray(STATE.investments)      ? STATE.investments      : [];
   STATE.forecastNotes    = Array.isArray(STATE.forecastNotes)    ? STATE.forecastNotes    : [];
   STATE.notes            = STATE.notes            || {};
   STATE.additionalIncome = STATE.additionalIncome || {};
@@ -1292,8 +1291,18 @@ function buildLiveMDATA() {
     // a fresh comparison: declared actual vs the ORIGINAL plan's cumulative
     // through this same month (never negative — being ahead of plan isn't a
     // deficit). Any earlier drift is discarded; this becomes the new baseline.
-    if (isEFOpeningRow)  efDeficitThisMonth  = Math.max(_planOnlyThrough(m.key).planEF  - STATE.efOpening.amt,  0);
-    if (isBufOpeningRow) bufDeficitThisMonth = Math.max(_planOnlyThrough(m.key).planBuf - STATE.bufOpening.amt, 0);
+    // v4.7 SYNC FIX — the baseline row now carries the net of that month's own
+    // ledger entries that the baseline does NOT supersede (same _confKeeps rule
+    // as computeConfirmed). Previously the snap discarded them, so an entry
+    // logged in the baseline month moved the Savings tab's confirmed balance but
+    // not the Forecast's cumEF/cumBuf — the two tabs disagreed by exactly that
+    // entry. The deficit uses the same corrected figure, and the plan comparison
+    // now uses the LIVE vehicle month rather than the static plan one, so Buffer
+    // is compared like-for-like.
+    const efSnap  = isEFOpeningRow  ? STATE.efOpening.amt  + _keptNetForMonth(STATE.efLedger,  STATE.efOpening,  m.key) : 0;
+    const bufSnap = isBufOpeningRow ? STATE.bufOpening.amt + _keptNetForMonth(STATE.bufLedger, STATE.bufOpening, m.key) : 0;
+    if (isEFOpeningRow)  efDeficitThisMonth  = Math.max(_planOnlyThrough(m.key, liveVehicleMonth).planEF  - efSnap,  0);
+    if (isBufOpeningRow) bufDeficitThisMonth = Math.max(_planOnlyThrough(m.key, liveVehicleMonth).planBuf - bufSnap, 0);
     const deficitEFEntering  = deficitEF;
     const deficitBufEntering = deficitBuf;
     deficitEF  = isEFOpeningRow  ? efDeficitThisMonth  : deficitEF  + efDeficitThisMonth;
@@ -1301,8 +1310,8 @@ function buildLiveMDATA() {
 
     cumEF += efThisMonth;
     cumBuf += bufThisMonth - veh;
-    if (isEFOpeningRow)  cumEF  = STATE.efOpening.amt;
-    if (isBufOpeningRow) cumBuf = STATE.bufOpening.amt;
+    if (isEFOpeningRow)  cumEF  = efSnap;
+    if (isBufOpeningRow) cumBuf = bufSnap;
 
     const totalExp = m.fixed + m.core + m.cc1 + m.cc2 + (m.purchase || 0);
     const debt = m.cc1 + m.cc2;
@@ -1379,7 +1388,7 @@ function go(tab, el) {
   document.getElementById('phase-tag').textContent = 'PHASE ' + ph.id;
   document.getElementById('hdr-month').textContent = fmtM(curMonth).toUpperCase();
   deriveBalances();
-  const renders = { overview: renderOverview, mindmap: renderMindmap, tracker: renderTracker, cards: renderCards, savings: renderSavings, goals: renderGoals, forecast: renderForecast };
+  const renders = { overview: renderOverview, mindmap: renderMindmap, tracker: renderTracker, cards: renderCards, savings: renderSavings, invest: renderInvest, forecast: renderForecast };
   if (renders[tab]) renders[tab]();
 }
 
@@ -1539,11 +1548,12 @@ function renderOverview() {
   // v4.6 — Overview priority buckets show CONFIRMED EF/Buffer (baseline + logged
   // ledger entries only). See computeConfirmed(). No auto-accrual of plan figures.
   const conf = computeConfirmed();
+  const invTotal = (STATE.investments || []).reduce((s,i) => s + i.amt, 0);
   const buckets = [
-    { cls:'p0', tag:'P0 · CRITICAL', col:'var(--gn)',  name:'🛡 Emergency Fund', target:EF_TARGET,    saved:conf.ef,                    note:'Confirmed · Target ₹2L' },
-    { cls:'p1', tag:'P1 · ONGOING',  col:'var(--go)',  name:'💰 Buffer Reserve',  target:100000,       saved:Math.max(conf.buf,0),       note:'Confirmed · Post-bike' },
-    { cls:'p2', tag:'P2 · DYNAMIC',  col:'var(--go)',  name:'🏍 2nd Hand Bike',   target:VEHICLE_COST, saved:STATE.bikeAmt,             note:'₹50k · Cash · ' + fmtM(liveVehicleMonth) },
-    { cls:'p3', tag:'P3 · JAN 2027', col:'var(--pu)',  name:'🏔 RE Himalayan',    target:500000,       saved:STATE.reAmt,               note:'On hold · Starts Jan 27' },
+    { cls:'p0', tag:'P0 · CRITICAL', col:'var(--gn)',  name:'🛡 Emergency Fund', target:EF_TARGET,      saved:conf.ef,                    note:'Confirmed · Target ₹2L' },
+    { cls:'p1', tag:'P1 · ONGOING',  col:'var(--go)',  name:'💰 Buffer Reserve',  target:BUFFER_TARGET, saved:Math.max(conf.buf,0),       note:'Confirmed · Post-bike' },
+    { cls:'p2', tag:'P2 · DYNAMIC',  col:'var(--go)',  name:'🏍 2nd Hand Bike',   target:VEHICLE_COST,  saved:Math.min(Math.max(conf.buf,0), VEHICLE_COST), note:'₹50k from Buffer · ' + fmtM(liveVehicleMonth) },
+    { cls:'p3', tag:'P3 · PORTFOLIO',col:'var(--pu)',  name:'📈 My Investments',  target:Math.max(invTotal,1), saved:invTotal,            note:invTotal>0 ? (STATE.investments||[]).length + ' holding(s) · manual entry' : 'Add holdings on the Investments tab' },
   ];
   document.getElementById('ov-pbuckets').innerHTML = buckets.map(b => {
     const pct = Math.min((b.saved/b.target)*100, 100);
@@ -1683,13 +1693,38 @@ function calculateTotals() {
 // the instant the calendar rolled over, whether or not you'd actually put the
 // money aside — see the Aug 2026 audit: baseline 40k + un-logged Aug plan 25k
 // silently became "current balance" 65k).
+// v4.7 BUGFIX — the old filter was `e.month > baseline.month`, which silently
+// swallowed every entry logged IN the baseline month itself. With the default
+// baselines sitting on July 2026, an "ADD" of ₹5,000 to Buffer in July (or any
+// earlier month) changed nothing on screen — the reported "buffer amount not
+// working despite manual entry". The rule is now:
+//   • an entry logged AFTER the baseline was declared (baseline.ts) always
+//     counts, whatever month it is tagged to — you moved that money after
+//     declaring the baseline, so it is on top of it;
+//   • for legacy baselines with no timestamp (including the pre-set July
+//     defaults) the month test is inclusive: `e.month >= baseline.month`.
+// Only entries genuinely superseded by the declaration are dropped.
+// Shared by computeConfirmed(), buildLiveMDATA() and the Investments pies so
+// every tab reports the same confirmed number.
+function _confKeeps(e, b) {
+  if (!b) return true;
+  if (b.ts) return e.id > b.ts || e.month > b.month;
+  return e.month >= b.month;
+}
+// Net of the kept ledger entries for one specific month (used to reconcile the
+// Forecast's baseline row with the confirmed balance).
+function _keptNetForMonth(ledger, b, month) {
+  return (ledger || []).filter(e => e.month === month && _confKeeps(e, b))
+    .reduce((s,e) => s + (e.type === 'deduct' ? -e.amt : e.amt), 0);
+}
+
 function computeConfirmed() {
   const efBase  = STATE.efOpening  ? STATE.efOpening.amt  : 0;
   const bufBase = STATE.bufOpening ? STATE.bufOpening.amt : 0;
   const efFromMonth  = STATE.efOpening  ? STATE.efOpening.month  : null;
   const bufFromMonth = STATE.bufOpening ? STATE.bufOpening.month : null;
-  const efEntries  = (STATE.efLedger  || []).filter(e => !efFromMonth  || e.month > efFromMonth);
-  const bufEntries = (STATE.bufLedger || []).filter(e => !bufFromMonth || e.month > bufFromMonth);
+  const efEntries  = (STATE.efLedger  || []).filter(e => _confKeeps(e, STATE.efOpening));
+  const bufEntries = (STATE.bufLedger || []).filter(e => _confKeeps(e, STATE.bufOpening));
   const efNet  = efEntries.reduce((s,e)  => s + (e.type === 'deduct' ? -e.amt : e.amt), 0);
   const bufNet = bufEntries.reduce((s,e) => s + (e.type === 'deduct' ? -e.amt : e.amt), 0);
   return {
@@ -2100,7 +2135,8 @@ function setEFOpening() {
   const amt = parseFloat(inp.value);
   if (isNaN(amt)) return;
   if (EXCLUDED_MONTHS.includes(curMonth)) { showToast('⚠️ Pick June 2026 or later on the strip first.', 'err', 4000); return; }
-  STATE.efOpening = { month: curMonth, amt };
+  // ts = when the baseline was declared; entries logged after it always count (see _confKeeps).
+  STATE.efOpening = { month: curMonth, amt, ts: Date.now() };
   inp.value = '';
   deriveBalances(); save(); renderSavings();
   showToast('✓ EF baseline set to ' + fmt(amt) + ' as of ' + fmtM(curMonth), 'ok');
@@ -2115,7 +2151,8 @@ function setBufOpening() {
   const amt = parseFloat(inp.value);
   if (isNaN(amt)) return;
   if (EXCLUDED_MONTHS.includes(curMonth)) { showToast('⚠️ Pick June 2026 or later on the strip first.', 'err', 4000); return; }
-  STATE.bufOpening = { month: curMonth, amt };
+  // ts = when the baseline was declared; entries logged after it always count (see _confKeeps).
+  STATE.bufOpening = { month: curMonth, amt, ts: Date.now() };
   inp.value = '';
   deriveBalances(); save(); renderSavings();
   showToast('✓ Buffer baseline set to ' + fmt(amt) + ' as of ' + fmtM(curMonth), 'ok');
@@ -2126,12 +2163,25 @@ function clearBufOpening() {
   showToast('Buffer baseline cleared — back to computed plan/ledger totals', 'info');
 }
 
+// v4.7 — confirm every manual entry out loud, and say so explicitly when an
+// entry lands in a month an opening baseline supersedes (previously it just
+// vanished into the ledger with no visible effect).
+function _afterLedgerEntry(e, baseline, label) {
+  if (!_confKeeps(e, baseline)) {
+    showToast(`\u26a0\ufe0f ${label} entry saved for ${fmtM(e.month)}, but the baseline as of ${fmtM(baseline.month)} supersedes it \u2014 the confirmed balance is unchanged. Log it against ${fmtM(baseline.month)} or later, or clear the baseline.`, 'err', 7000);
+  } else {
+    showToast(`\u2713 ${label} ${e.type === 'deduct' ? '\u2212' : '+'}${fmt(e.amt)} logged for ${fmtM(e.month)}`, 'ok');
+  }
+}
+
 function addEF() {
   if (_guardExcluded()) return;
   const amt = parseFloat(document.getElementById('ef-inp').value) || 0;
   if (!amt) return;
   const note = document.getElementById('ef-note').value.trim() || 'Manual EF addition';
-  STATE.efLedger.push({ id: Date.now(), month: curMonth, amt, type:'add', note, date: new Date().toISOString().split('T')[0] });
+  const _e = { id: Date.now(), month: curMonth, amt, type:'add', note, date: new Date().toISOString().split('T')[0] };
+  STATE.efLedger.push(_e);
+  _afterLedgerEntry(_e, STATE.efOpening, 'EF');
   document.getElementById('ef-inp').value = '';
   document.getElementById('ef-note').value = '';
   deriveBalances(); save(); renderSavings();
@@ -2141,7 +2191,9 @@ function useEF() {
   const amt = parseFloat(document.getElementById('ef-ded-inp').value) || 0;
   if (!amt) return;
   const note = document.getElementById('ef-ded-note').value.trim() || 'EF withdrawal';
-  STATE.efLedger.push({ id: Date.now(), month: curMonth, amt, type:'deduct', note, date: new Date().toISOString().split('T')[0] });
+  const _e = { id: Date.now(), month: curMonth, amt, type:'deduct', note, date: new Date().toISOString().split('T')[0] };
+  STATE.efLedger.push(_e);
+  _afterLedgerEntry(_e, STATE.efOpening, 'EF');
   document.getElementById('ef-ded-inp').value = '';
   document.getElementById('ef-ded-note').value = '';
   deriveBalances(); save(); renderSavings();
@@ -2155,7 +2207,9 @@ function addBuffer() {
   const amt = parseFloat(document.getElementById('buf-add-inp').value) || 0;
   if (!amt) return;
   const note = document.getElementById('buf-add-note').value.trim() || 'Manual buffer addition';
-  STATE.bufLedger.push({ id: Date.now(), month: curMonth, amt, type:'add', note, date: new Date().toISOString().split('T')[0] });
+  const _e = { id: Date.now(), month: curMonth, amt, type:'add', note, date: new Date().toISOString().split('T')[0] };
+  STATE.bufLedger.push(_e);
+  _afterLedgerEntry(_e, STATE.bufOpening, 'Buffer');
   document.getElementById('buf-add-inp').value = '';
   document.getElementById('buf-add-note').value = '';
   deriveBalances(); save(); renderSavings();
@@ -2165,7 +2219,9 @@ function useBuffer() {
   const amt = parseFloat(document.getElementById('buf-inp').value) || 0;
   if (!amt) return;
   const note = document.getElementById('buf-note').value.trim() || 'Buffer withdrawal';
-  STATE.bufLedger.push({ id: Date.now(), month: curMonth, amt, type:'deduct', note, date: new Date().toISOString().split('T')[0] });
+  const _e = { id: Date.now(), month: curMonth, amt, type:'deduct', note, date: new Date().toISOString().split('T')[0] };
+  STATE.bufLedger.push(_e);
+  _afterLedgerEntry(_e, STATE.bufOpening, 'Buffer');
   document.getElementById('buf-inp').value = '';
   document.getElementById('buf-note').value = '';
   deriveBalances(); save(); renderSavings();
@@ -2175,29 +2231,39 @@ function deleteBufEntry(id) {
   deriveBalances(); save(); renderSavings();
 }
 
-function _ledgerListHTML(entries, delFn, color) {
+// v4.7 — entries superseded by an opening baseline are now visibly marked
+// instead of silently doing nothing, so it's obvious why one isn't moving the
+// confirmed balance.
+function _ledgerListHTML(entries, delFn, color, baseline) {
   if (!entries.length) return '<div style="font-size:10px;color:var(--t3);font-family:var(--mn);padding:4px 0">No manual entries yet</div>';
-  return '<div style="max-height:150px;overflow-y:auto;margin-top:6px">' + entries.slice().sort((a,b)=>b.id-a.id).map(e => `
-    <div class="tx" style="padding:5px 0">
+  return '<div style="max-height:150px;overflow-y:auto;margin-top:6px">' + entries.slice().sort((a,b)=>b.id-a.id).map(e => {
+    const counted = _confKeeps(e, baseline);
+    return `
+    <div class="tx" style="padding:5px 0${counted?'':';opacity:.45'}">
       <div class="tx-ic" style="font-size:10px">${e.type==='deduct'?'▼':'▲'}</div>
       <div style="flex:1">
         <div style="font-size:11px;font-weight:500;color:var(--t1)">${esc(e.note)}</div>
-        <div style="font-size:9px;color:var(--t3);font-family:var(--mn)">${fmtM(e.month)} · ${esc(e.date)}</div>
+        <div style="font-size:9px;color:var(--t3);font-family:var(--mn)">${fmtM(e.month)} · ${esc(e.date)}${counted?'':' · ⛔ SUPERSEDED BY BASELINE'}</div>
       </div>
       <div style="font-family:var(--mn);font-size:12px;font-weight:700;color:${e.type==='deduct'?'var(--rd)':color}">${e.type==='deduct'?'-':'+'}${fmt(e.amt)}</div>
       <button class="tx-del" onclick="${delFn}(${e.id})">✕</button>
-    </div>`).join('') + '</div>';
+    </div>`; }).join('') + '</div>';
 }
 
 // Plan-only cumulative through the current real month (excludes ALL manual
 // adjustments). v4.1 fix: the old version computed this as cumEF − total
 // efAdjust across every month, which broke when adjustments were logged
 // against future months.
-function _planOnlyThrough(targetMonth) {
+// v4.7 — vehicleMonth is now a parameter. buildLiveMDATA passes the LIVE
+// (dynamically detected) purchase month so the plan comparison it makes uses
+// the same ₹50k timing as the live series; callers that want the pure static
+// plan baseline can omit it.
+function _planOnlyThrough(targetMonth, vehicleMonth) {
+  const vm = vehicleMonth || PLAN_VEHICLE_MONTH;
   let planEF = 0, planBuf = 0;
   for (const m of PLAN) {
     if (EXCLUDED_MONTHS.includes(m.key)) { if (m.key === targetMonth) break; continue; }
-    const veh = m.key === PLAN_VEHICLE_MONTH ? VEHICLE_COST : 0;
+    const veh = m.key === vm ? VEHICLE_COST : 0;
     planEF += m.ef;
     planBuf += m.buf - veh;
     if (m.key === targetMonth) break;
@@ -2252,7 +2318,7 @@ function renderSavings() {
         <span>FORECAST (if plan is met, thru ${fmtM(efAnchorMonth)})</span><span style="color:var(--ac)">${fmt(STATE.efForecast)}</span></div>
       <div style="font-size:9px;color:var(--t3);margin-top:5px;line-height:1.4">Nothing is auto-added to the confirmed number for unlogged months — log an EF entry below whenever you actually move money.</div>
     </div>
-    ${_ledgerListHTML(STATE.efLedger, 'deleteEFEntry', 'var(--gn)')}`;
+    ${_ledgerListHTML(STATE.efLedger, 'deleteEFEntry', 'var(--gn)', STATE.efOpening)}`;
   const efMilestones = [50000, 100000, 150000, 200000];
   document.getElementById('ef-milestones').innerHTML =
     '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">' +
@@ -2277,7 +2343,7 @@ function renderSavings() {
         <span>FORECAST (if plan is met, thru ${fmtM(bufAnchorMonth)})</span><span style="color:var(--ac)">${STATE.bufForecast<0?'-':''}${fmt(STATE.bufForecast)}</span></div>
       <div style="font-size:9px;color:var(--t3);margin-top:5px;line-height:1.4">The ₹50k bike deduction only hits the confirmed number once you log an actual buffer withdrawal for it — it's not auto-subtracted.</div>
     </div>
-    ${_ledgerListHTML(STATE.bufLedger, 'deleteBufEntry', 'var(--go)')}`;
+    ${_ledgerListHTML(STATE.bufLedger, 'deleteBufEntry', 'var(--go)', STATE.bufOpening)}`;
   document.getElementById('buf-breakdown').innerHTML = bufAnchorMonth >= liveVehicleMonth
     ? `<div class="alert al-w" style="margin-top:8px">🏍 Plan projects a ₹50,000 bike purchase around ${fmtM(liveVehicleMonth)} — this won't reduce your CONFIRMED buffer until you actually log the withdrawal.</div>` : '';
 
@@ -2343,78 +2409,186 @@ function saveNote(month) {
 }
 
 // ===============================================
-//  TAB 6 · GOALS
+//  TAB 6 · MY INVESTMENTS  (v4.7 — replaces the old Goals tab)
 // ===============================================
-function updateBike() {
-  const amt = parseFloat(document.getElementById('bike-inp').value) || 0;
-  if (!amt) return;
-  const note = document.getElementById('bike-note').value.trim() || 'Bike fund contribution';
-  STATE.bikeLog.push({ id: Date.now(), amt, note, date: new Date().toISOString().split('T')[0] });
-  document.getElementById('bike-inp').value = '';
-  document.getElementById('bike-note').value = '';
-  deriveBalances(); save(); renderGoals();
+// A fully INDEPENDENT manual portfolio. It reads nothing from the plan, the
+// ledgers or the tracker, and nothing reads it back — EF/Buffer/Forecast are
+// untouched by anything logged here. Each entry is a live snapshot of one
+// holding's current value: add, edit (overwrite) or delete.
+const INV_TYPE_ICONS = { 'Mutual Fund':'📊', 'Stocks':'📈', 'Gold':'🥇', 'FD / RD':'🏦', 'PPF / EPF / NPS':'🏛', 'Bonds':'📜', 'Crypto':'₿', 'Real Estate':'🏠', 'Other':'📦' };
+const PIE_COLORS = ['var(--gn)','var(--go)','var(--ac)','var(--pu)','var(--or)','#4ecdc4','#ffe66d','#ff6b6b','#a8e6cf','var(--rd)','#7f9cf5','#f19bd8'];
+let _invEditId = null;
+
+function _invEls() {
+  return {
+    name: document.getElementById('inv-name'),
+    amt:  document.getElementById('inv-amt'),
+    type: document.getElementById('inv-type'),
+    note: document.getElementById('inv-note'),
+  };
 }
-function deleteBikeLog(id) {
-  STATE.bikeLog = STATE.bikeLog.filter(e => e.id !== Number(id));
-  deriveBalances(); save(); renderGoals();
+function saveInvestment() {
+  const el = _invEls();
+  const name = el.name.value.trim();
+  const amt  = parseFloat(el.amt.value);
+  if (!name) { showToast('⚠️ Give the investment a name.', 'err'); return; }
+  if (isNaN(amt)) { showToast('⚠️ Enter the current value.', 'err'); return; }
+  STATE.investments = STATE.investments || [];
+  if (_invEditId !== null) {
+    const row = STATE.investments.find(i => i.id === _invEditId);
+    if (row) {
+      row.name = name; row.amt = amt; row.type = el.type.value; row.note = el.note.value.trim();
+      row.updated = new Date().toISOString().split('T')[0];
+    }
+    showToast('✓ ' + name + ' updated', 'ok');
+  } else {
+    STATE.investments.push({
+      id: Date.now(), name, amt, type: el.type.value, note: el.note.value.trim(),
+      date: new Date().toISOString().split('T')[0]
+    });
+    showToast('✓ ' + name + ' added to portfolio', 'ok');
+  }
+  cancelInvestEdit();
+  save(); renderInvest();
 }
-function updateRE() {
-  const amt = parseFloat(document.getElementById('re-inp').value) || 0;
-  if (!amt) return;
-  const note = document.getElementById('re-note').value.trim() || 'Himalayan SIP';
-  STATE.reLog.push({ id: Date.now(), amt, note, date: new Date().toISOString().split('T')[0] });
-  document.getElementById('re-inp').value = '';
-  document.getElementById('re-note').value = '';
-  deriveBalances(); save(); renderGoals();
+function editInvestment(id) {
+  const row = (STATE.investments || []).find(i => i.id === Number(id));
+  if (!row) return;
+  _invEditId = row.id;
+  const el = _invEls();
+  el.name.value = row.name; el.amt.value = row.amt;
+  el.type.value = row.type || 'Other'; el.note.value = row.note || '';
+  document.getElementById('inv-form-title').textContent = 'Edit Investment';
+  document.getElementById('inv-save-btn').textContent = 'SAVE CHANGES';
+  document.getElementById('inv-cancel-btn').style.display = '';
+  el.name.focus();
+  renderInvest();
 }
-function deleteRELog(id) {
-  STATE.reLog = STATE.reLog.filter(e => e.id !== Number(id));
-  deriveBalances(); save(); renderGoals();
+function cancelInvestEdit() {
+  _invEditId = null;
+  const el = _invEls();
+  if (el.name) { el.name.value = ''; el.amt.value = ''; el.note.value = ''; }
+  const t = document.getElementById('inv-form-title');
+  if (t) t.textContent = 'Add Investment';
+  const b = document.getElementById('inv-save-btn');
+  if (b) b.textContent = 'ADD INVESTMENT';
+  const c = document.getElementById('inv-cancel-btn');
+  if (c) c.style.display = 'none';
+  renderInvest();
+}
+function deleteInvestment(id) {
+  STATE.investments = (STATE.investments || []).filter(i => i.id !== Number(id));
+  if (_invEditId === Number(id)) _invEditId = null;
+  save(); renderInvest();
 }
 
-function _goalHistoryHTML(entries, delFn, color) {
-  if (!entries.length) return '<div style="padding:10px;text-align:center;color:var(--t3);font-size:10px;font-family:var(--mn)">NO CONTRIBUTIONS YET</div>';
-  return entries.slice().sort((a,b)=>b.id-a.id).map(e => `
-    <div class="tx">
-      <div class="tx-ic">💰</div>
-      <div style="flex:1"><div class="tx-n">${esc(e.note)}</div><div class="tx-d">${esc(e.date)}</div></div>
-      <div class="tx-a pos" style="color:${color}">+${fmt(e.amt)}</div>
-      <button class="tx-del" onclick="${delFn}(${e.id})">✕</button>
-    </div>`).join('');
+// ── Pie / donut renderer ─────────────────────────────────────────────────────
+// items: [{ l, a, c }] — non-positive slices are dropped (a pie can't show them).
+function renderPie(elId, items, centerLabel, note, centerValue) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const data = (items || []).filter(i => i.a > 0);
+  const total = data.reduce((s, i) => s + i.a, 0);
+  if (!total) {
+    el.innerHTML = `<div class="pie-empty">NO DATA YET</div>${note ? `<div style="font-size:9px;color:var(--t3);text-align:center;line-height:1.5">${note}</div>` : ''}`;
+    return;
+  }
+  const R = 58, C = 2 * Math.PI * R;
+  let off = 0;
+  const segs = data.map(i => {
+    const frac = i.a / total;
+    const seg = `<circle class="pie-seg" r="${R}" cx="75" cy="75" fill="transparent" stroke="${i.c}" stroke-width="24"
+      stroke-dasharray="${(frac*C).toFixed(2)} ${(C - frac*C).toFixed(2)}" stroke-dashoffset="${(-off*C).toFixed(2)}"
+      transform="rotate(-90 75 75)"><title>${esc(i.l)}: ${fmt(i.a)} (${(frac*100).toFixed(1)}%)</title></circle>`;
+    off += frac;
+    return seg;
+  }).join('');
+  el.innerHTML = `
+    <div class="pie-wrap">
+      <svg class="pie-svg" viewBox="0 0 150 150">${segs}</svg>
+      <div class="pie-ctr"><div class="pie-ctr-v">${(centerValue === undefined ? total : centerValue) < 0 ? '-' : ''}${fmt(centerValue === undefined ? total : centerValue)}</div><div class="pie-ctr-l">${esc(centerLabel || 'TOTAL')}</div></div>
+    </div>
+    <div class="pie-lg">${data.map(i => `
+      <div class="pie-lg-i">
+        <span class="pie-dot" style="background:${i.c}"></span>
+        <span class="pie-lg-l" title="${esc(i.l)}">${esc(i.l)}</span>
+        <span class="pie-lg-v">${fmt(i.a)}</span>
+        <span class="pie-lg-p">${((i.a/total)*100).toFixed(0)}%</span>
+      </div>`).join('')}</div>
+    ${note ? `<div style="font-size:9px;color:var(--t3);margin-top:9px;line-height:1.5">${note}</div>` : ''}`;
 }
 
-function renderGoals() {
-  deriveBalances();
-  const liveMD = buildLiveMDATA();
-  const bikePct = Math.min((STATE.bikeAmt/VEHICLE_COST)*100, 100);
-  document.getElementById('bike-amt').textContent = fmt(STATE.bikeAmt);
-  document.getElementById('bike-pct-lbl').textContent = bikePct.toFixed(0) + '% of ₹50,000';
-  document.getElementById('bike-bar').style.width = bikePct + '%';
-  document.getElementById('bike-ready-wrap').innerHTML = STATE.bikeAmt >= VEHICLE_COST
-    ? '<div class="goal-ready">🏍 READY TO BUY!</div>'
-    : `<div style="font-size:10px;color:var(--t2);font-family:var(--mn)">${fmt(VEHICLE_COST - STATE.bikeAmt)} to go</div>`;
-  document.getElementById('bike-history').innerHTML = _goalHistoryHTML(STATE.bikeLog, 'deleteBikeLog', 'var(--go)');
-  const rePct = Math.min((STATE.reAmt/500000)*100, 100);
-  document.getElementById('re-amt-disp').textContent = fmt(STATE.reAmt);
-  document.getElementById('re-pct-lbl').textContent = rePct.toFixed(1) + '% of ₹5,00,000';
-  document.getElementById('re-bar').style.width = rePct + '%';
-  document.getElementById('re-history').innerHTML = _goalHistoryHTML(STATE.reLog, 'deleteRELog', 'var(--pu)');
-  const liveVehicleMonth = liveMD.find(r => r.veh > 0)?.key || VEHICLE_DEADLINE;
-  // v4.6 — goal-target subtitle now reflects the dynamically computed vehicle
-  // month instead of a hardcoded "September 2026".
-  const goalTargetEl = document.querySelector('#tab-goals .goal-target');
-  if (goalTargetEl) goalTargetEl.textContent = `Target: ₹50,000 · Source: Buffer · Projected buy: ${fmtM(liveVehicleMonth)} (if plan followed)`;
-  const tlMonths = liveMD.filter(m => !m.excluded && m.key <= liveVehicleMonth);
-  document.getElementById('bike-timeline').innerHTML = tlMonths.map(m => {
-    const preBuy = m.veh > 0 ? m.cumBuf + VEHICLE_COST : m.cumBuf;
-    const pct = Math.min(Math.max((preBuy/VEHICLE_COST)*100, 0), 100);
-    return `<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid rgba(26,34,51,.4)">
-      <div style="font-family:var(--mn);font-size:10px;color:var(--t2);flex:0 0 80px">${m.lbl}</div>
-      <div style="flex:1"><div class="pb h8"><div class="pbf" style="width:${pct}%;background:${pct>=100?'var(--gn)':'linear-gradient(90deg,var(--go),var(--or))'}"></div></div></div>
-      <div style="font-family:var(--mn);font-size:11px;font-weight:700;color:${preBuy>=VEHICLE_COST?'var(--gn)':'var(--go)'};flex:0 0 90px;text-align:right">${preBuy<0?'-':''}${fmt(preBuy)}</div>
-      <div style="font-size:9px;color:var(--t3);flex:0 0 100px;font-family:var(--mn)">${m.veh>0 ? '🏍 BUY → ' + (m.cumBuf<0?'-':'') + fmt(m.cumBuf) + ' left' : pct.toFixed(0)+'% of ₹50k'}</div>
-    </div>`;
-  }).join('') + `<div style="font-size:10px;color:var(--t3);margin-top:8px;line-height:1.5">This is a PLAN projection, not your confirmed buffer — cumulative buffer before purchase vs the ₹50k target, assuming every month's plan contribution actually happened. The buy happens as soon as buffer hits ₹50k, capped at November (currently projected ${fmtM(liveVehicleMonth)}). Log actual buffer entries on the Savings tab to see your real position.</div>`;
+// Confirmed EF/Buffer composition, month by month — same source of truth as
+// computeConfirmed() so the pies always agree with the Savings tab headline.
+function _confirmedSlices(ledger, opening, baseLabel) {
+  const slices = [];
+  if (opening && opening.amt > 0) slices.push({ l: baseLabel + ' (' + fmtM(opening.month) + ')', a: opening.amt });
+  const byMonth = {};
+  (ledger || []).filter(e => _confKeeps(e, opening)).forEach(e => {
+    byMonth[e.month] = (byMonth[e.month] || 0) + (e.type === 'deduct' ? -e.amt : e.amt);
+  });
+  Object.keys(byMonth).sort().forEach(m => { if (byMonth[m] > 0) slices.push({ l: fmtM(m) + ' logged', a: byMonth[m] }); });
+  return slices.map((s, i) => ({ ...s, c: PIE_COLORS[i % PIE_COLORS.length] }));
+}
+
+function renderInvest() {
+  const inv = STATE.investments || [];
+  const total = inv.reduce((s, i) => s + i.amt, 0);
+  const conf = computeConfirmed();
+
+  // ── Stats ──
+  const byType = {};
+  inv.forEach(i => { byType[i.type || 'Other'] = (byType[i.type || 'Other'] || 0) + i.amt; });
+  const topType = Object.keys(byType).sort((a,b) => byType[b] - byType[a])[0];
+  const biggest = inv.slice().sort((a,b) => b.amt - a.amt)[0];
+  document.getElementById('inv-stats').innerHTML = `
+    <div class="stat gn"><div class="sl">Portfolio Value</div><div class="sv">${fmt(total)}</div><div class="ss">${inv.length} holding${inv.length===1?'':'s'} · manual</div></div>
+    <div class="stat"><div class="sl">Largest Holding</div><div class="sv">${biggest ? fmt(biggest.amt) : '—'}</div><div class="ss">${biggest ? esc(biggest.name) : 'Nothing added yet'}</div></div>
+    <div class="stat go"><div class="sl">Top Asset Class</div><div class="sv" style="font-size:15px">${topType ? esc(topType) : '—'}</div><div class="ss">${topType ? fmt(byType[topType]) + ' · ' + ((byType[topType]/total)*100).toFixed(0) + '% of portfolio' : 'Nothing added yet'}</div></div>
+    <div class="stat pu"><div class="sl">Investments + EF + Buffer</div><div class="sv">${fmt(total + conf.ef + Math.max(conf.buf,0))}</div><div class="ss">Total confirmed net worth tracked</div></div>`;
+
+  // ── Holdings list ──
+  document.getElementById('inv-count').textContent = inv.length + ' ENTR' + (inv.length===1?'Y':'IES');
+  document.getElementById('inv-list').innerHTML = inv.length
+    ? inv.slice().sort((a,b) => b.amt - a.amt).map(i => `
+      <div class="inv-row${_invEditId === i.id ? ' editing' : ''}">
+        <div class="tx-ic">${INV_TYPE_ICONS[i.type] || '📦'}</div>
+        <div style="flex:1;min-width:0">
+          <div class="inv-nm">${esc(i.name)}</div>
+          <div class="inv-sub">${esc(i.type || 'Other')}${i.note ? ' · ' + esc(i.note) : ''} · ${esc(i.updated || i.date || '')}${total > 0 ? ' · ' + ((i.amt/total)*100).toFixed(1) + '%' : ''}</div>
+        </div>
+        <div class="inv-amt">${fmt(i.amt)}</div>
+        <button class="inv-btn" onclick="editInvestment(${i.id})">EDIT</button>
+        <button class="inv-btn del" onclick="deleteInvestment(${i.id})">✕</button>
+      </div>`).join('')
+    : '<div style="padding:22px;text-align:center;color:var(--t3);font-size:10px;font-family:var(--mn)">NO INVESTMENTS YET — ADD ONE ON THE LEFT</div>';
+
+  // ── Pie 1 · Investments by holding ──
+  renderPie('pie-inv', inv.slice().sort((a,b) => b.amt - a.amt).map((i, n) => ({ l: i.name, a: i.amt, c: PIE_COLORS[n % PIE_COLORS.length] })),
+    'PORTFOLIO', 'Every slice is a manual entry. Independent of EF, Buffer and the Forecast.');
+
+  // ── Pie 2 · Emergency Fund (confirmed composition + gap to ₹2L) ──
+  const efSlices = _confirmedSlices(STATE.efLedger, STATE.efOpening, 'Baseline');
+  const efGap = Math.max(EF_TARGET - conf.ef, 0);
+  renderPie('pie-ef', efSlices.concat(efGap > 0 ? [{ l: 'Remaining to ₹2L target', a: efGap, c: 'rgba(122,138,166,.28)' }] : []),
+    'EF CONFIRMED', `Confirmed EF ${fmt(conf.ef)} of the ₹2L target — baseline plus every logged entry. Matches the EF &amp; Buffer tab exactly; unlogged months add nothing.`, conf.ef);
+
+  // ── Pie 3 · Buffer (confirmed composition + gap to the ₹1L reserve goal) ──
+  const bufSlices = _confirmedSlices(STATE.bufLedger, STATE.bufOpening, 'Baseline');
+  const bufGap = Math.max(BUFFER_TARGET - conf.buf, 0);
+  renderPie('pie-buf', bufSlices.concat(bufGap > 0 ? [{ l: 'Remaining to ₹1L reserve', a: bufGap, c: 'rgba(122,138,166,.28)' }] : []),
+    'BUFFER', conf.buf < 0
+      ? `Confirmed Buffer is <span style="color:var(--rd)">-${fmt(conf.buf)}</span> — withdrawals exceed what's been added. Log a top-up on the EF &amp; Buffer tab.`
+      : `Confirmed Buffer ${fmt(conf.buf)} — baseline plus every logged entry. Matches the EF &amp; Buffer tab exactly.`, conf.buf);
+
+  // ── Pie 4 · Overall expenditure (everything logged in the Tracker) ──
+  const expByCat = {};
+  (STATE.transactions || []).forEach(t => { expByCat[t.cat] = (expByCat[t.cat] || 0) + t.amt; });
+  const expSlices = Object.keys(expByCat).sort((a,b) => expByCat[b] - expByCat[a])
+    .map((c, n) => ({ l: (CAT_ICONS[c] || '📦') + ' ' + c, a: expByCat[c], c: CAT_COLORS[c] || PIE_COLORS[n % PIE_COLORS.length] }));
+  const expTotal = expSlices.reduce((s,i) => s + i.a, 0);
+  renderPie('pie-exp', expSlices, 'SPENT',
+    `Every transaction logged on the Tracker across Apr–Dec 2026 (${(STATE.transactions||[]).length} entries, ${fmt(expTotal)}). Cash view only — EF/Buffer transfers logged on the Savings tab are not counted here.`);
 }
 
 // ===============================================
@@ -2442,11 +2616,14 @@ function renderForecast() {
   const debtTotal = CC1_TOTAL + CC2_TOTAL;
   const debtPaidBySep = liveMD.filter(m => m.key <= '2026-09').reduce((s,m) => s + m.cc1 + m.cc2, 0);
   const conf = computeConfirmed();
+  const fcVehicleMonth = liveMD.find(r => r.veh > 0)?.key || VEHICLE_DEADLINE;
 
-  // ── Top stats — v4.6: added confirmed EF/Buffer alongside the forecast stats ──
+  // ── Top stats — v4.7: the two confirmed tiles are the SAME numbers the
+  // EF & Buffer tab shows in its headline (both read computeConfirmed()), so
+  // the tabs can be compared side by side without them drifting apart.
   document.getElementById('fc-6m-stats').innerHTML = `
-    <div class="stat gn"><div class="sl">EF Confirmed (today)</div><div class="sv">${fmt(conf.ef)}</div><div class="ss">Baseline + logged only — no auto-accrual</div></div>
-    <div class="stat go"><div class="sl">Buffer Confirmed (today)</div><div class="sv">${(conf.buf<0?'-':'')+fmt(conf.buf)}</div><div class="ss">Baseline + logged only — no auto-accrual</div></div>
+    <div class="stat gn"><div class="sl">EF Confirmed (today)</div><div class="sv">${fmt(conf.ef)}</div><div class="ss">Same figure as the EF &amp; Buffer tab</div></div>
+    <div class="stat go"><div class="sl">Buffer Confirmed (today)</div><div class="sv">${(conf.buf<0?'-':'')+fmt(conf.buf)}</div><div class="ss">Same figure as the EF &amp; Buffer tab</div></div>
     <div class="stat rd"><div class="sl">Debt paid by Sep (forecast)</div><div class="sv">${fmt(Math.min(debtPaidBySep, debtTotal))}</div><div class="ss">of ${fmt(debtTotal)} total</div></div>
     <div class="stat"><div class="sl">Year-end EF (forecast)</div><div class="sv">${fmt(dec.cumEF)}</div><div class="ss">${((dec.cumEF/EF_TARGET)*100).toFixed(0)}% of target, IF plan is met</div></div>`;
 
@@ -2523,7 +2700,10 @@ function renderForecast() {
     sumLine('EF accrued', fmt(sep.cumEF), 'ng') +
     sumLine('Buffer (post-bike)', (sep.cumBuf<0?'-':'')+fmt(sep.cumBuf), 'ngo') +
     sumLine('Debt paid', fmt(Math.min(debtPaidBySep, debtTotal)) + ' / ' + fmt(debtTotal), 'nr') +
-    sumLine('Bike', '🏍 Purchased Sep (₹50k)', 'ngo');
+    // v4.7 — was hardcoded to September; now follows the dynamically detected
+    // purchase month, matching the table, the Savings tab and the Overview.
+    sumLine('Bike', '🏍 ' + (fcVehicleMonth <= '2026-09' ? 'Projected ' + fmtM(fcVehicleMonth) : 'Not yet — projected ' + fmtM(fcVehicleMonth)) + ' (₹50k)', 'ngo') +
+    sumLine('Confirmed EF / Buffer today', fmt(conf.ef) + ' / ' + (conf.buf<0?'-':'') + fmt(conf.buf), 'n');
   document.getElementById('fc-ye-detail').innerHTML =
     sumLine('Income (Apr–Dec)', fmt(sumInc), 'na') +
     sumLine('Expenses', fmt(sumExp), 'nr') +
@@ -2621,6 +2801,7 @@ function resetData() {
     efLedger: [], bufLedger: [],
     bikeLog: [], reLog: [],
     bikeAmt: 0, reAmt: 0,
+    investments: [],
     notes: {},
     priorities: { p0:0, p1:0, p2:0, p3:0 },
     forecastNotes: [],
@@ -2641,7 +2822,7 @@ function renderCurrentTab() {
   const active = document.querySelector('.tab.on');
   if (!active) return;
   const tab = active.id.replace('tab-','');
-  const renders = { overview: renderOverview, mindmap: renderMindmap, tracker: renderTracker, cards: renderCards, savings: renderSavings, goals: renderGoals, forecast: renderForecast };
+  const renders = { overview: renderOverview, mindmap: renderMindmap, tracker: renderTracker, cards: renderCards, savings: renderSavings, invest: renderInvest, forecast: renderForecast };
   if (renders[tab]) renders[tab]();
 }
 
