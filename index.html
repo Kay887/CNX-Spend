@@ -320,6 +320,8 @@ create policy "public rw" on cnx_data for all using (true);</code>
     <button class="hdr-btn" onclick="document.getElementById('import-file').click()" style="border-color:rgba(0,217,104,.3);color:var(--gn)">IMPORT</button>
     <button class="hdr-btn" onclick="forcePush()" style="border-color:rgba(0,200,240,.3);color:var(--ac)" title="Force push local data to cloud">↑ PUSH</button>
     <button class="hdr-btn" onclick="forcePull()" style="border-color:rgba(157,111,255,.3);color:var(--pu)" title="Force pull cloud data to this device">↓ PULL</button>
+    <button class="hdr-btn" onclick="restoreFromCloud()" style="border-color:rgba(0,217,104,.35);color:var(--gn)" title="Restore the newest dated cloud backup (fills gaps, never overwrites)">☁ RESTORE</button>
+    <button class="hdr-btn" onclick="restoreHistoric()" style="border-color:rgba(240,165,0,.35);color:var(--go)" title="Re-merge the embedded 1 Sep 2026 historic snapshot (fills gaps, never overwrites)">↺ RESTORE</button>
     <button class="hdr-btn" onclick="resetData()" style="border-color:rgba(255,61,90,.2);color:var(--rd)" title="Clear all data">RESET</button>
     <input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImport(event)"/>
   </div>
@@ -827,6 +829,12 @@ create policy "public rw" on cnx_data for all using (true);</code>
 
 </div><!-- /main -->
 
+<!-- HISTORIC DATA SNAPSHOT — export of 2026-09-01. Restored automatically when
+     local/cloud state is empty, or on demand via the RESTORE button. -->
+<script id="cnx-historic-seed" type="application/json">
+{"transactions":[{"id":1775150510641,"amt":38000,"cat":"Fixed","date":"2026-04-02","desc":"Rent","note":"","month":"2026-04"},{"id":1775150579235,"amt":3000,"cat":"Buffer","date":"2026-04-02","desc":"Buffer 1st month","note":"","month":"2026-04"},{"id":1775153110655,"amt":12000,"cat":"CC1","date":"2026-04-02","desc":"Sriram - EMI 1","note":"","month":"2026-04"},{"id":1775153172268,"amt":10000,"cat":"EF","date":"2026-04-02","desc":"EF 1 month","note":"","month":"2026-04"},{"id":1775400623182,"amt":1500,"cat":"Misc","date":"2026-04-03","desc":"Food and Dinner","note":"","month":"2026-04"},{"id":1775400681726,"amt":1000,"cat":"Fixed","date":"2026-04-04","desc":"Food - A2B","note":"","month":"2026-04"},{"id":1775400735973,"amt":500,"cat":"Fixed","date":"2026-04-04","desc":"MMT - Ticket reschedule","note":"","month":"2026-04"},{"id":1775400773155,"amt":600,"cat":"Misc","date":"2026-04-04","desc":"Coffee beans and appalam","note":"","month":"2026-04"},{"id":1775400805021,"amt":300,"cat":"Misc","date":"2026-04-05","desc":"Food - Peanuts & Munchies","note":"","month":"2026-04"},{"id":1775400822119,"amt":200,"cat":"Misc","date":"2026-04-05","desc":"Sharjah Milkshake","note":"","month":"2026-04"},{"id":1775400864467,"amt":1700,"cat":"Fixed","date":"2026-04-05","desc":"Maid Pay","note":"","month":"2026-04"},{"id":1775407781336,"amt":2600,"cat":"Misc","date":"2026-04-05","desc":"Cab - NGT - SRGM","note":"","month":"2026-04"},{"id":1775484504154,"amt":35000,"cat":"CC2","date":"2026-04-06","desc":"CC2","note":"","month":"2026-04"},{"id":1775484591218,"amt":1000,"cat":"Fixed","date":"2026-04-06","desc":"Groceries","note":"Online order fro essentials","month":"2026-04"},{"id":1775718910025,"amt":600,"cat":"Misc","date":"2026-04-08","desc":"Auto travel","note":"","month":"2026-04"},{"id":1775718933846,"amt":2000,"cat":"Misc","date":"2026-04-08","desc":"Money Lended","note":"Nousath","month":"2026-04"},{"id":1775718959366,"amt":600,"cat":"Fixed","date":"2026-04-09","desc":"Swiggy Groceries","note":"","month":"2026-04"},{"id":1775719205665,"amt":16000,"cat":"LIC","date":"2026-04-09","desc":"LIC Premium","note":"","month":"2026-04"},{"id":1775802070829,"amt":2400,"cat":"Misc","date":"2026-04-10","desc":"Urban Company","note":"","month":"2026-04"},{"id":1775802098625,"amt":2000,"cat":"Misc","date":"2026-04-09","desc":"Vinu - Party Contribution","note":"","month":"2026-04"},{"id":1775802128955,"amt":500,"cat":"Misc","date":"2026-04-09","desc":"Lunch","note":"","month":"2026-04"},{"id":1775802143899,"amt":150,"cat":"Misc","date":"2026-04-10","desc":"Auto to office","note":"","month":"2026-04"},{"id":1775802292743,"amt":1000,"cat":"Misc","date":"2026-04-10","desc":"Groceries","note":"","month":"2026-04"},{"id":1775910931994,"amt":200,"cat":"Misc","date":"2026-04-11","desc":"Food","note":"","month":"2026-04"},{"id":1775910954126,"amt":600,"cat":"Misc","date":"2026-04-11","desc":"Groceries - Swiggy & Zepto","note":"","month":"2026-04"},{"id":1775971762679,"amt":600,"cat":"Fixed","date":"2026-04-12","desc":"Groceries","note":"","month":"2026-04"},{"id":1776229386910,"amt":1000,"cat":"Misc","date":"2026-04-13","desc":"Coffee beans","note":"","month":"2026-04"},{"id":1776229406331,"amt":1000,"cat":"Fixed","date":"2026-04-15","desc":"Internet","note":"","month":"2026-04"},{"id":1776229425012,"amt":2600,"cat":"Misc","date":"2026-04-15","desc":"Ac pipes","note":"","month":"2026-04"},{"id":1776229437349,"amt":1300,"cat":"Misc","date":"2026-04-15","desc":"Tobbu","note":"","month":"2026-04"},{"id":1776229531460,"amt":1500,"cat":"Misc","date":"2026-04-15","desc":"Groceries","note":"Misc","month":"2026-04"},{"id":1776278283664,"amt":2000,"cat":"CNIS","date":"2026-04-15","desc":"Claude AI","note":"","month":"2026-04"},{"id":1776433944096,"amt":1000,"cat":"Fixed","date":"2026-04-17","desc":"Meds","note":"","month":"2026-04"},{"id":1776433958545,"amt":1000,"cat":"Fixed","date":"2026-04-17","desc":"Food","note":"","month":"2026-04"},{"id":1776832072640,"amt":1000,"cat":"Fixed","date":"2026-04-22","desc":"Groceries","note":"","month":"2026-04"},{"id":1777452275641,"amt":600,"cat":"Food","date":"2026-04-22","desc":"Third Wave Coffee","note":"","month":"2026-04"},{"id":1777452311619,"amt":1200,"cat":"Groceries","date":"2026-04-23","desc":"Groceries","note":"","month":"2026-04"},{"id":1777452363677,"amt":600,"cat":"Food","date":"2026-04-24","desc":"Takeaway","note":"","month":"2026-04"},{"id":1777452399882,"amt":1000,"cat":"Misc","date":"2026-04-24","desc":"Tobbu","note":"","month":"2026-04"},{"id":1777452432981,"amt":1200,"cat":"Transport","date":"2026-04-25","desc":"Cab from airport to home","note":"","month":"2026-04"},{"id":1777452472686,"amt":300,"cat":"Fixed","date":"2026-04-29","desc":"Electricity bill","note":"","month":"2026-04"},{"id":1777452484533,"amt":300,"cat":"Groceries","date":"2026-04-29","desc":"Groceries","note":"","month":"2026-04"},{"id":1777539259281,"amt":400,"cat":"Groceries","date":"2026-04-30","desc":"Swiggy","note":"","month":"2026-04"},{"id":1777539289690,"amt":300,"cat":"Food","date":"2026-04-30","desc":"Third wave","note":"","month":"2026-04"},{"id":1777906101874,"amt":38000,"cat":"Fixed","date":"2026-05-04","desc":"Rent","note":"","month":"2026-05"},{"id":1777907832928,"amt":12000,"cat":"Fixed","date":"2026-05-04","desc":"Sriram","note":"","month":"2026-05"},{"id":1777907945430,"amt":12000,"cat":"EF","date":"2026-05-04","desc":"EF for May","note":"","month":"2026-05"},{"id":1777907968048,"amt":3000,"cat":"Buffer","date":"2026-05-04","desc":"Buffer","note":"","month":"2026-05"},{"id":1777908171372,"amt":5500,"cat":"LIC","date":"2026-05-04","desc":"LIC","note":"","month":"2026-05"},{"id":1777908339957,"amt":10000,"cat":"Purchase","date":"2026-05-04","desc":"1st investment mine","note":"Put it in FD, do not touch","month":"2026-05"},{"id":1777908388703,"amt":6000,"cat":"CC1","date":"2026-05-04","desc":"ICI","note":"","month":"2026-05"},{"id":1777918503323,"amt":1000,"cat":"Groceries","date":"2026-05-04","desc":"Groceries","note":"","month":"2026-05"},{"id":1777981176199,"amt":780,"cat":"Fixed","date":"2026-05-05","desc":"Old Maid","note":"Final settlement","month":"2026-05"},{"id":1778045660536,"amt":21000,"cat":"CC2","date":"2026-05-06","desc":"CC2 Payment","note":"","month":"2026-05"},{"id":1778058092386,"amt":460,"cat":"Fixed","date":"2026-05-06","desc":"Amazon","note":"Oats and Bluetooth adapter","month":"2026-05"},{"id":1778135423435,"amt":100,"cat":"Misc","date":"2026-05-07","desc":"Aadhar card registration","note":"","month":"2026-05"},{"id":1778135482194,"amt":250,"cat":"Fixed","date":"2026-05-07","desc":"Prakash","note":"","month":"2026-05"},{"id":1778137253864,"amt":1600,"cat":"Misc","date":"2026-05-07","desc":"Drinks","note":"Handa","month":"2026-05"},{"id":1778137286342,"amt":405,"cat":"Misc","date":"2026-05-07","desc":"Groceries","note":"Rice","month":"2026-05"},{"id":1778137334268,"amt":1300,"cat":"Groceries","date":"2026-05-07","desc":"Amazon groceries","note":"RIce 5kg and apple","month":"2026-05"},{"id":1778169441874,"amt":300,"cat":"Groceries","date":"2026-05-07","desc":"Milk and others chips and all","note":"Zepto","month":"2026-05"},{"id":1778169459773,"amt":280,"cat":"Food","date":"2026-05-07","desc":"Samosa","note":"","month":"2026-05"},{"id":1778169476906,"amt":320,"cat":"Groceries","date":"2026-05-07","desc":"Groundnut Oil","note":"","month":"2026-05"},{"id":1778169494344,"amt":400,"cat":"Food","date":"2026-05-07","desc":"Pizza","note":"","month":"2026-05"},{"id":1778169512196,"amt":1300,"cat":"Misc","date":"2026-05-07","desc":"Tobbu + Filters","note":"","month":"2026-05"},{"id":1778169552114,"amt":2500,"cat":"Misc","date":"2026-05-07","desc":"Replacement Money","note":"Wife","month":"2026-05"},{"id":1778260727813,"amt":1300,"cat":"Misc","date":"2026-05-08","desc":"Wife ticket","note":"Shatabdi","month":"2026-05"},{"id":1778321364106,"amt":400,"cat":"Food","date":"2026-05-09","desc":"Lunch - Samosa Party","note":"","month":"2026-05"},{"id":1778399098587,"amt":400,"cat":"Groceries","date":"2026-05-10","desc":"Groceries - Swiggy","note":"Milk, Curd, COffee Powder","month":"2026-05"},{"id":1778434944708,"amt":400,"cat":"Groceries","date":"2026-05-10","desc":"Groceries","note":"Chips, CHeese, Bun","month":"2026-05"},{"id":1778500038532,"amt":800,"cat":"Misc","date":"2026-05-11","desc":"Gift for wife","note":"","month":"2026-05"},{"id":1778500051451,"amt":200,"cat":"Transport","date":"2026-05-11","desc":"Auto","note":"To officd","month":"2026-05"},{"id":1778510002585,"amt":2000,"cat":"Misc","date":"2026-05-11","desc":"Pottu","note":"","month":"2026-05"},{"id":1778519554531,"amt":300,"cat":"Transport","date":"2026-05-11","desc":"Auto to home","note":"","month":"2026-05"},{"id":1778519593816,"amt":1100,"cat":"Fixed","date":"2026-05-11","desc":"Internet","note":"","month":"2026-05"},{"id":1778572656287,"amt":150,"cat":"Transport","date":"2026-05-12","desc":"Commute to work","note":"","month":"2026-05"},{"id":1778670975671,"amt":500,"cat":"Transport","date":"2026-05-13","desc":"Transport","note":"","month":"2026-05"},{"id":1778670987078,"amt":500,"cat":"Transport","date":"2026-05-13","desc":"Transport back from cost to home","note":"","month":"2026-05"},{"id":1778696984178,"amt":300,"cat":"Misc","date":"2026-05-13","desc":"Glass for phone","note":"","month":"2026-05"},{"id":1778697009311,"amt":350,"cat":"Food","date":"2026-05-13","desc":"Groceries","note":"Chips, Sprite, Zip Locks","month":"2026-05"},{"id":1778697025534,"amt":4000,"cat":"CNIS","date":"2026-05-13","desc":"CNX DSC","note":"","month":"2026-05"},{"id":1778739820751,"amt":2100,"cat":"Fixed","date":"2026-05-14","desc":"Electricity bill","note":"","month":"2026-05"},{"id":1778842823009,"amt":150,"cat":"Transport","date":"2026-05-15","desc":"Auto","note":"","month":"2026-05"},{"id":1778842838084,"amt":400,"cat":"Food","date":"2026-05-15","desc":"Food","note":"","month":"2026-05"},{"id":1778842869179,"amt":300,"cat":"Misc","date":"2026-05-15","desc":"Papers","note":"","month":"2026-05"},{"id":1778843190405,"amt":500,"cat":"Food","date":"2026-05-15","desc":"Dinner","note":"Udipi","month":"2026-05"},{"id":1778843226968,"amt":300,"cat":"Transport","date":"2026-05-14","desc":"Auto from UB city to JP Nagar","note":"","month":"2026-05"},{"id":1778950736288,"amt":240,"cat":"Transport","date":"2026-05-15","desc":"Auto to SBC","note":"","month":"2026-05"},{"id":1778950751879,"amt":340,"cat":"Transport","date":"2026-05-15","desc":"SBC - home auto","note":"","month":"2026-05"},{"id":1778950766225,"amt":700,"cat":"Meds","date":"2026-05-16","desc":"Doc consult - ENT","note":"","month":"2026-05"},{"id":1778950775102,"amt":800,"cat":"Meds","date":"2026-05-16","desc":"Meds for me and wife","note":"","month":"2026-05"},{"id":1778950798539,"amt":2000,"cat":"CNIS","date":"2026-05-16","desc":"Claude AI","note":"","month":"2026-05"},{"id":1778990934713,"amt":800,"cat":"Groceries","date":"2026-05-17","desc":"Groceries","note":"Dal, TP LInk Wifi adapter","month":"2026-05"},{"id":1779109442909,"amt":600,"cat":"Food","date":"2026-05-18","desc":"Food","note":"","month":"2026-05"},{"id":1779187064327,"amt":300,"cat":"Groceries","date":"2026-05-19","desc":"Groceries","note":"","month":"2026-05"},{"id":1779187072592,"amt":200,"cat":"Transport","date":"2026-05-19","desc":"Auto","note":"","month":"2026-05"},{"id":1779720045184,"amt":160,"cat":"Transport","date":"2026-05-19","desc":"Auto to office","note":"","month":"2026-05"},{"id":1779720063104,"amt":210,"cat":"Transport","date":"2026-05-19","desc":"Auto to home","note":"","month":"2026-05"},{"id":1779720090311,"amt":150,"cat":"Food","date":"2026-05-19","desc":"Food - Vada Pav","note":"","month":"2026-05"},{"id":1779720115195,"amt":250,"cat":"Groceries","date":"2026-05-19","desc":"Instamart","note":"","month":"2026-05"},{"id":1779720136518,"amt":280,"cat":"Food","date":"2026-05-20","desc":"Third Wave","note":"","month":"2026-05"},{"id":1779720170901,"amt":1100,"cat":"Food","date":"2026-05-22","desc":"Third Wave","note":"","month":"2026-05"},{"id":1779720194211,"amt":200,"cat":"Food","date":"2026-05-22","desc":"Asha Sweets","note":"","month":"2026-05"},{"id":1779720255430,"amt":500,"cat":"Food","date":"2026-05-25","desc":"Amazon NOw = Groceries","note":"Epson Salt and all","month":"2026-05"},{"id":1779720278510,"amt":250,"cat":"Groceries","date":"2026-05-23","desc":"Swiggy Instamart","note":"","month":"2026-05"},{"id":1779720301336,"amt":300,"cat":"Transport","date":"2026-05-23","desc":"Auto to BNC","note":"","month":"2026-05"},{"id":1779720313694,"amt":300,"cat":"Transport","date":"2026-05-23","desc":"BNC - Home","note":"","month":"2026-05"},{"id":1779720363852,"amt":600,"cat":"Food","date":"2026-05-24","desc":"Ayurveda and Food","note":"","month":"2026-05"},{"id":1779720384494,"amt":300,"cat":"Food","date":"2026-05-25","desc":"Third Wave","note":"Cash","month":"2026-05"},{"id":1780297587866,"amt":38000,"cat":"Fixed","date":"2026-06-01","desc":"Rent","note":"","month":"2026-06"},{"id":1780297606573,"amt":1000,"cat":"Food","date":"2026-06-01","desc":"Food","note":"","month":"2026-06"},{"id":1780297762147,"amt":12000,"cat":"Food","date":"2026-06-01","desc":"Boss - CC1","note":"3/6 EMIs","month":"2026-06"},{"id":1780299811645,"amt":5000,"cat":"CNIS","date":"2026-06-01","desc":"CNIS  Claude AI + API access","note":"","month":"2026-06"},{"id":1780299832261,"amt":5000,"cat":"LIC","date":"2026-06-01","desc":"LIC","note":"","month":"2026-06"},{"id":1780299850298,"amt":14000,"cat":"Purchase","date":"2026-06-01","desc":"Purchase","note":"","month":"2026-06"},{"id":1780299959806,"amt":10000,"cat":"EF","date":"2026-06-01","desc":"EF","note":"","month":"2026-06"},{"id":1780299973549,"amt":5000,"cat":"Buffer","date":"2026-06-01","desc":"Buffer","note":"","month":"2026-06"},{"id":1780300205570,"amt":1000,"cat":"Transport","date":"2026-06-01","desc":"Transport JPN - HSR - JPN","note":"","month":"2026-06"},{"id":1780492290957,"amt":7000,"cat":"CC1","date":"2026-06-03","desc":"CC - ICICI","note":"","month":"2026-06"},{"id":1780492366255,"amt":210,"cat":"Fixed","date":"2026-06-03","desc":"Mobile recharge","note":"","month":"2026-06"},{"id":1780492382322,"amt":1000,"cat":"Food","date":"2026-06-03","desc":"Food","note":"","month":"2026-06"},{"id":1780492420083,"amt":330,"cat":"Transport","date":"2026-06-03","desc":"Cab from Home to SBC","note":"","month":"2026-06"},{"id":1780720940288,"amt":2500,"cat":"Transport","date":"2026-06-06","desc":"Cabs to and fro","note":"","month":"2026-06"},{"id":1780720960689,"amt":17000,"cat":"CC2","date":"2026-06-06","desc":"Cc2","note":"CC2","month":"2026-06"},{"id":1780946738764,"amt":330,"cat":"Transport","date":"2026-06-07","desc":"Transport","note":"","month":"2026-06"},{"id":1780946762037,"amt":2000,"cat":"Misc","date":"2026-06-08","desc":"Liqor","note":"","month":"2026-06"},{"id":1780946785087,"amt":1000,"cat":"Food","date":"2026-06-07","desc":"Swiggy","note":"","month":"2026-06"},{"id":1780946807000,"amt":1200,"cat":"Food","date":"2026-06-07","desc":"Food Panache","note":"","month":"2026-06"},{"id":1780946834307,"amt":1100,"cat":"Misc","date":"2026-06-08","desc":"Tobbu","note":"","month":"2026-06"},{"id":1780946858680,"amt":750,"cat":"Transport","date":"2026-06-08","desc":"Transport","note":"","month":"2026-06"},{"id":1780946886451,"amt":1200,"cat":"Food","date":"2026-06-08","desc":"Food","note":"","month":"2026-06"},{"id":1780946906164,"amt":3000,"cat":"Misc","date":"2026-06-08","desc":"Backup","note":"Pott","month":"2026-06"},{"id":1780946943722,"amt":2000,"cat":"Misc","date":"2026-06-08","desc":"Pot","note":"","month":"2026-06"},{"id":1781030095042,"amt":2000,"cat":"Transport","date":"2026-06-09","desc":"Transport","note":"autos too and from Vashi - Govandi - Borivali","month":"2026-06"},{"id":1781030115771,"amt":1000,"cat":"Food","date":"2026-06-09","desc":"Food","note":"","month":"2026-06"},{"id":1782730691915,"amt":400,"cat":"Food","date":"2026-06-10","desc":"Food","note":"","month":"2026-06"},{"id":1782730742460,"amt":1100,"cat":"Fixed","date":"2026-06-14","desc":"Internet","note":"","month":"2026-06"},{"id":1782730776952,"amt":300,"cat":"Transport","date":"2026-06-15","desc":"Auto - Home to BNC","note":"","month":"2026-06"},{"id":1782730799170,"amt":300,"cat":"Transport","date":"2026-06-15","desc":"Auto - TPJ - SRGM","note":"","month":"2026-06"},{"id":1782730825139,"amt":400,"cat":"Meds","date":"2026-06-29","desc":"Medicines - Father","note":"","month":"2026-06"},{"id":1782730876437,"amt":800,"cat":"Groceries","date":"2026-06-18","desc":"Groceries - Masala Powder","note":"","month":"2026-06"},{"id":1782730902004,"amt":1000,"cat":"Food","date":"2026-06-19","desc":"Food","note":"","month":"2026-06"},{"id":1782730922434,"amt":300,"cat":"Transport","date":"2026-06-19","desc":"Auto - BNC to home","note":"","month":"2026-06"},{"id":1782730958720,"amt":1200,"cat":"Misc","date":"2026-06-24","desc":"Tobbu","note":"","month":"2026-06"},{"id":1782730980530,"amt":500,"cat":"Transport","date":"2026-06-25","desc":"Transport","note":"","month":"2026-06"},{"id":1782731036736,"amt":3000,"cat":"Food","date":"2026-06-27","desc":"Food","note":"","month":"2026-06"},{"id":1782731060645,"amt":1000,"cat":"Groceries","date":"2026-06-28","desc":"Groceries","note":"","month":"2026-06"},{"id":1782731092263,"amt":500,"cat":"Fixed","date":"2026-06-29","desc":"Bescom","note":"","month":"2026-06"},{"id":1782731103232,"amt":300,"cat":"Fixed","date":"2026-06-29","desc":"Registration","note":"","month":"2026-06"},{"id":1782731127914,"amt":1000,"cat":"Food","date":"2026-06-29","desc":"Food","note":"","month":"2026-06"},{"id":1782731138929,"amt":1000,"cat":"Fixed","date":"2026-06-29","desc":"Gas","note":"","month":"2026-06"},{"id":1782912125529,"amt":500,"cat":"Transport","date":"2026-07-01","desc":"Transport","note":"","month":"2026-07"},{"id":1782912346220,"amt":2500,"cat":"Misc","date":"2026-07-01","desc":"Bar jukebox","note":"","month":"2026-07"},{"id":1782912508613,"amt":4000,"cat":"Buffer","date":"2026-07-01","desc":"Buffer","note":"","month":"2026-07"},{"id":1782912568833,"amt":2200,"cat":"Misc","date":"2026-07-01","desc":"Misc","note":"","month":"2026-07"},{"id":1782912684225,"amt":12000,"cat":"Fixed","date":"2026-07-01","desc":"Boss","note":"","month":"2026-07"},{"id":1782912694608,"amt":10000,"cat":"CC1","date":"2026-07-01","desc":"ICICI","note":"","month":"2026-07"},{"id":1782915252405,"amt":1500,"cat":"Fixed","date":"2026-07-01","desc":"Maid","note":"","month":"2026-07"},{"id":1782991221581,"amt":600,"cat":"Food","date":"2026-07-01","desc":"Ice cream","note":"","month":"2026-07"},{"id":1782991247963,"amt":38000,"cat":"Fixed","date":"2026-07-02","desc":"Rent","note":"Rent for June","month":"2026-07"},{"id":1782991615388,"amt":32300,"cat":"Misc","date":"2026-07-02","desc":"Investment","note":"","month":"2026-07"},{"id":1782991671151,"amt":2500,"cat":"CNIS","date":"2026-07-02","desc":"E-sign","note":"E-sign and Claude","month":"2026-07"},{"id":1783201170382,"amt":1000,"cat":"Groceries","date":"2026-07-02","desc":"instamart","note":"","month":"2026-07"},{"id":1783201198504,"amt":1600,"cat":"Groceries","date":"2026-07-02","desc":"Amazon Pay","note":"","month":"2026-07"},{"id":1783201220477,"amt":4500,"cat":"CNIS","date":"2026-07-03","desc":"Trademark","note":"","month":"2026-07"},{"id":1783201359755,"amt":400,"cat":"Food","date":"2026-07-03","desc":"Food","note":"","month":"2026-07"},{"id":1783201414225,"amt":400,"cat":"Food","date":"2026-07-04","desc":"Food","note":"","month":"2026-07"},{"id":1783201442555,"amt":300,"cat":"Transport","date":"2026-07-04","desc":"Auto - home to sbc","note":"","month":"2026-07"},{"id":1783201464165,"amt":300,"cat":"Transport","date":"2026-07-04","desc":"auto - sbc - home","note":"","month":"2026-07"},{"id":1783201490052,"amt":1000,"cat":"Transport","date":"2026-07-04","desc":"Ticket - MAS - BNC","note":"","month":"2026-07"},{"id":1783201520214,"amt":300,"cat":"Fixed","date":"2026-07-04","desc":"Maintenance - Garbage","note":"","month":"2026-07"},{"id":1783201550779,"amt":1100,"cat":"Food","date":"2026-07-04","desc":"Instamart","note":"chips, Chewing gum, biscuits","month":"2026-07"},{"id":1783333001602,"amt":20000,"cat":"CC2","date":"2026-07-06","desc":"CC Payment","note":"","month":"2026-07"},{"id":1783694361741,"amt":1000,"cat":"Groceries","date":"2026-07-10","desc":"Food & Groceries","note":"","month":"2026-07"},{"id":1783694384847,"amt":1000,"cat":"Groceries","date":"2026-07-10","desc":"Instamart","note":"","month":"2026-07"},{"id":1783694406684,"amt":550,"cat":"Food","date":"2026-07-10","desc":"Food","note":"","month":"2026-07"},{"id":1784018752770,"amt":1000,"cat":"Groceries","date":"2026-07-11","desc":"Instamart Groceries","note":"","month":"2026-07"},{"id":1784018776264,"amt":2000,"cat":"Transport","date":"2026-07-14","desc":"Rent vehicle","note":"Royal Brothers - 2 days","month":"2026-07"},{"id":1784018817404,"amt":700,"cat":"Food","date":"2026-07-14","desc":"Lunch A2B","note":"","month":"2026-07"},{"id":1784018839802,"amt":1100,"cat":"Transport","date":"2026-07-14","desc":"Ticket wife - TPJ - BNC","note":"","month":"2026-07"},{"id":1784018859185,"amt":1300,"cat":"Misc","date":"2026-07-14","desc":"Tobbu","note":"","month":"2026-07"},{"id":1784018875334,"amt":500,"cat":"CNIS","date":"2026-07-14","desc":"Google Workspace","note":"","month":"2026-07"},{"id":1784018884601,"amt":1100,"cat":"Fixed","date":"2026-07-14","desc":"Internet","note":"","month":"2026-07"},{"id":1784019076015,"amt":30000,"cat":"Misc","date":"2026-07-14","desc":"Investment","note":"FD","month":"2026-07"},{"id":1784559201505,"amt":20000,"cat":"Transport","date":"2026-07-20","desc":"Flight tickets","note":"","month":"2026-07"},{"id":1784559865140,"amt":1500,"cat":"Groceries","date":"2026-07-20","desc":"Swiggy & Zepto groceries","note":"","month":"2026-07"},{"id":1785567094436,"amt":25000,"cat":"EF","date":"2026-08-01","desc":"EF","note":"","month":"2026-08"},{"id":1785567106957,"amt":10000,"cat":"Buffer","date":"2026-08-01","desc":"Buffer","note":"","month":"2026-08"},{"id":1785579345121,"amt":12000,"cat":"Misc","date":"2026-08-01","desc":"Sriram","note":"","month":"2026-08"},{"id":1785579357217,"amt":25000,"cat":"EF","date":"2026-08-01","desc":"EF","note":"","month":"2026-08"},{"id":1785579369673,"amt":10000,"cat":"CC1","date":"2026-08-01","desc":"C1","note":"","month":"2026-08"},{"id":1785740667339,"month":"2026-08","desc":"Travel - Malleswaram & Back","cat":"Fixed","amt":1000,"date":"2026-08-03","note":""},{"id":1785740676768,"month":"2026-08","desc":"Dry Fruits","cat":"Fixed","amt":2100,"date":"2026-08-03","note":""},{"id":1785741012376,"month":"2026-08","desc":"LIC","cat":"LIC","amt":15600,"date":"2026-08-03","note":""},{"id":1785741104588,"month":"2026-08","desc":"Rent","cat":"Fixed","amt":39900,"date":"2026-08-02","note":""},{"id":1785741138868,"month":"2026-08","desc":"Internet","cat":"Fixed","amt":1060,"date":"2026-08-03","note":""},{"id":1785741147177,"month":"2026-08","desc":"Recharge","cat":"Fixed","amt":300,"date":"2026-08-03","note":""},{"id":1785741160738,"month":"2026-08","desc":"Auto to office","cat":"Transport","amt":140,"date":"2026-08-03","note":""},{"id":1785741841811,"month":"2026-08","desc":"Domain Renewal","cat":"CNIS","amt":1414,"date":"2026-08-03","note":""}],"ccPayments":[{"id":1775484538040,"amt":12000,"card":1,"date":"2026-04-06","note":""},{"id":1775484543596,"amt":35000,"card":2,"date":"2026-04-06","note":""},{"id":1777908425186,"amt":12000,"card":1,"date":"2026-05-04","note":""},{"id":1778045676669,"amt":21000,"card":2,"date":"2026-05-06","note":""},{"id":1780494410239,"amt":7000,"card":1,"date":"2026-06-03","note":""},{"id":1780720989045,"amt":17000,"card":2,"date":"2026-06-06","note":""},{"id":1782731332949,"amt":12000,"card":1,"date":"2026-06-29","note":""},{"id":1782731339947,"amt":12000,"card":1,"date":"2026-06-29","note":""},{"id":1782912747280,"amt":10000,"card":1,"date":"2026-07-01","note":"July bill"},{"id":1783333024295,"amt":20000,"card":2,"date":"2026-07-06","note":""}],"ccExpenses":[{"id":1776522572954,"amt":1100,"card":1,"date":"2026-04-18","desc":"Train Tickets","note":""},{"id":1776580092706,"amt":3000,"card":2,"date":"2026-04-19","desc":"Amazon","note":"Dishwasher tablet, rinse aid, Mille protein powder"},{"id":1777452147842,"amt":1000,"card":1,"date":"2026-04-29","desc":"Third Wave","note":""},{"id":1778348756817,"amt":1800,"card":1,"date":"2026-05-09","desc":"Amazon imprtant stuff","note":"lip balm, bulb, water bottle"},{"id":1778348794373,"amt":5000,"card":2,"date":"2026-05-09","desc":"Amazon","note":"Firestick"},{"id":1778842923211,"amt":4000,"card":1,"date":"2026-05-15","desc":"TIckets BLR - MAA","note":""},{"id":1778843069137,"amt":3700,"card":1,"date":"2026-05-15","desc":"Ticket LTT - Tech error pending","note":"Refund is pending from MMT"},{"id":1779881653287,"amt":4000,"card":1,"date":"2026-05-27","desc":"Tickets LTT - BLR","note":"WL1, will cancel either of the tickets"},{"id":1779882108803,"amt":4000,"card":1,"date":"2026-05-27","desc":"Tickets to BLR","note":"Backup ticket will cancel at the end if it gets confirmed"},{"id":1780300247180,"amt":3500,"card":2,"date":"2026-06-01","desc":"Amazon","note":"Protein and others"},{"id":1782719613287,"amt":1000,"card":1,"date":"2026-06-15","desc":"Tickets - BNC - TPJ","note":""},{"id":1782719636155,"amt":2400,"card":1,"date":"2026-06-19","desc":"Tickets TPJ - BNC","note":""},{"id":1782731530805,"amt":1700,"card":1,"date":"2026-06-29","desc":"Hotel","note":""},{"id":1782991703065,"amt":3000,"card":2,"date":"2026-07-01","desc":"Food","note":"Brik Oven"},{"id":1783335937868,"amt":12000,"card":2,"date":"2026-07-06","desc":"EMIs","note":""}],"efLedger":[{"id":1781245870140,"amt":6000,"date":"2026-06-12","note":"","type":"add"},{"id":1782719549325,"amt":11000,"date":"2026-06-29","note":"Unexpected expenses","type":"deduct"},{"id":1782729941108,"amt":5000,"date":"2026-06-29","note":"Medical Expense","type":"deduct","month":"2026-06"},{"id":1784633044293,"amt":20000,"date":"2026-07-21","note":"Manual EF addition","type":"add","month":"2026-07"},{"id":1784633063143,"amt":20000,"date":"2026-07-21","note":"Manual EF addition","type":"add","month":"2026-07"},{"id":1784633067934,"amt":5000,"date":"2026-07-21","note":"Manual EF addition","type":"add","month":"2026-07"},{"id":1785579413808,"amt":25000,"date":"2026-08-01","note":"Manual EF addition","type":"add","month":"2026-08"}],"bufLedger":[{"id":1777452091813,"amt":3000,"date":"2026-04-29","note":"Emergency Expen","type":"deduct"},{"id":1779109388816,"amt":3000,"date":"2026-05-18","note":"","type":"add"},{"id":1780300076672,"amt":2300,"date":"2026-06-01","note":"Adjustment","type":"deduct"},{"id":1782729973168,"amt":5000,"date":"2026-06-29","note":"House related expense","type":"deduct","month":"2026-06"},{"id":1782912258806,"amt":6700,"date":"2026-07-01","note":"","type":"deduct","month":"2026-07"},{"id":1783694500140,"amt":2700,"date":"2026-07-10","note":"","type":"deduct","month":"2026-07"},{"id":1784560123906,"amt":2700,"date":"2026-07-20","note":"Added","type":"add","month":"2026-07"},{"id":1784631370389,"amt":2000,"date":"2026-07-21","note":"","type":"deduct","month":"2026-07"},{"id":1784631474426,"amt":10000,"date":"2026-07-21","note":"Manual buffer addition","type":"add","month":"2026-07"},{"id":1784631489996,"amt":10000,"date":"2026-07-21","note":"Manual buffer addition","type":"add","month":"2026-07"},{"id":1784632989746,"amt":10000,"date":"2026-07-21","note":"Manual buffer addition","type":"add","month":"2026-07"},{"id":1784633029044,"amt":1000,"date":"2026-07-21","note":"Add","type":"add","month":"2026-07"},{"id":1784633072796,"amt":10000,"date":"2026-07-21","note":"Manual buffer addition","type":"add","month":"2026-07"},{"id":1784638196054,"amt":10000,"date":"2026-07-21","note":"Manual buffer addition","type":"add","month":"2026-07"}],"bikeLog":[],"reLog":[],"notes":{"2026-04":{"reason":"Took money to spend for additional expenses","reduced":true},"2026-05":{"reason":"Made up so far, hopefully it doesn't reduce till the end of the month","reduced":true}},"forecastNotes":[],"additionalIncome":{"2026-04":[{"id":1776229461781,"amt":5000,"date":"2026-04-15","source":"Savings"},{"id":1776433902095,"amt":2000,"date":"2026-04-17","source":"From EF"},{"id":1776832108118,"amt":1300,"date":"2026-04-22","source":"Loan"},{"id":1777452334330,"amt":3000,"date":"2026-04-29","source":"From Buffer"},{"id":1777452456652,"amt":1500,"date":"2026-04-29","source":"EF Break"}],"2026-05":[{"id":1779104797455,"amt":5000,"date":"2026-05-18","source":"Broke EF"}],"2026-07":[{"id":1784019059567,"amt":50000,"date":"2026-07-14","source":"Token Amount"}]},"balanceAdjust":{"2026-08":[{"id":1785741029736,"amt":10000,"note":"Friend owed money","date":"2026-08-03"}]},"lastUpdated":1788254586977,"investments":[]}
+</script>
+
 <script>
 // ===============================================
 //  CORE DATA MODEL
@@ -890,6 +898,35 @@ const MDATA_PLAN = PLAN.map(m => {
 
 const CAT_ICONS = { Fixed:'🏠', CC1:'💳', CC2:'💳', EF:'🛡', Buffer:'💰', CNIS:'📋', LIC:'🛡', Purchase:'🛍', Transport:'🚗', Groceries:'🛒', Food:'🍔', Meds:'💊', Misc:'📦' };
 const CAT_COLORS = { Fixed:'var(--rd)', CC1:'var(--rd)', CC2:'var(--or)', EF:'var(--gn)', Buffer:'var(--go)', CNIS:'var(--ac)', LIC:'var(--pu)', Purchase:'#ff6b6b', Transport:'#4ecdc4', Groceries:'#ffe66d', Food:'#ff6b6b', Meds:'#a8e6cf', Misc:'var(--t2)' };
+
+// ===============================================
+//  DECLARED OPENING BASELINES
+// ===============================================
+// v4.7 BUGFIX — these two constants were REFERENCED by the STATE initialiser
+// below but never declared, so the whole script threw a ReferenceError on the
+// very first statement that used them. Everything after that point never ran:
+// init() was never bound to the load event, so no month strips, no tabs, no
+// localStorage read, no Supabase pull. The app looked wiped when in fact
+// nothing had been deleted — it simply never started. Declaring them here is
+// the fix; the values are the ones the v4.7 comment below describes.
+//
+// `ts` is the moment the baseline was DECLARED (1 Sep 2026). _confKeeps() uses
+// it so that ledger entries recorded before the declaration are treated as
+// already folded into the declared amount, while anything logged afterwards
+// stacks on top. Without a ts it falls back to an inclusive month test, which
+// would double-count the ₹25,000 EF add logged on 1 Aug 2026.
+const OPENING_DECLARED_TS  = 1788249600000; // 2026-09-01T00:00:00Z
+const OPENING_REV          = '2026-08-aug-close-v1';
+const DEFAULT_EF_OPENING   = { month: '2026-08', amt: 80000, ts: OPENING_DECLARED_TS, rev: OPENING_REV };
+const DEFAULT_BUF_OPENING  = { month: '2026-08', amt: 30000, ts: OPENING_DECLARED_TS, rev: OPENING_REV };
+
+// Historic snapshot (export of 2026-09-01) embedded in the page as JSON — see
+// the <script id="cnx-historic-seed"> block above. Used to repopulate an empty
+// device and as the source for the manual RESTORE button.
+const HISTORIC_SEED = (() => {
+  try { return JSON.parse(document.getElementById('cnx-historic-seed').textContent); }
+  catch(e) { return null; }
+})();
 
 // ===============================================
 //  STATE
@@ -1031,10 +1068,127 @@ async function pushToSupabase(debounce = true) {
     setSyncStatus('online', 'SAVED ✓');
     setTimeout(() => setSyncStatus('online', 'ONLINE'), 2000);
     _wsBroadcast(payload);
+    writeCloudBackup(payload);
   } catch(e) {
     setSyncStatus('error', 'SAVE FAILED');
     showToast('⚠️ Save failed: ' + e.message, 'err', 5000);
   } finally { _isSyncing = false; }
+}
+
+// ===============================================
+//  CLOUD BACKUP / POINT-IN-TIME RESTORE
+// ===============================================
+// The live row (ROW_ID) is a single last-write-wins slot: anything that empties
+// it — a bad deploy, a RESET, a stale device pushing over good data — takes the
+// cloud copy with it. So every save also stamps a DATED snapshot row alongside
+// it, in the same cnx_data table (no schema change needed), giving a rolling
+// history to fall back on.
+//
+// Two hard rules keep the backups trustworthy:
+//   1. An EMPTY payload is never backed up. A wipe cannot overwrite history.
+//   2. A dated row is only ever written once per day per device session, so
+//      routine typing doesn't hammer the API.
+const BACKUP_PREFIX   = 'cnx_backup_';
+const BACKUP_KEEP_DAYS = 30;
+let _lastBackupDay = null;
+
+function _payloadIsEmpty(p) {
+  if (!p) return true;
+  const n = k => Array.isArray(p[k]) ? p[k].length : 0;
+  return !(n('transactions') || n('ccPayments') || n('ccExpenses')
+        || n('efLedger') || n('bufLedger') || n('investments'));
+}
+
+// Upsert today's snapshot row. Fire-and-forget: a backup failure must never
+// interfere with the save that just succeeded.
+async function writeCloudBackup(payload) {
+  try {
+    if (!sbReady || _payloadIsEmpty(payload)) return;
+    const day = new Date().toISOString().split('T')[0];
+    if (_lastBackupDay === day) return;
+    const id = BACKUP_PREFIX + day;
+    const base = sbUrl.replace(/\/$/, '');
+    const hdr = { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey, 'Content-Type': 'application/json' };
+    const body = JSON.stringify({ payload, updated_at: new Date().toISOString() });
+    const res = await fetch(base + '/rest/v1/cnx_data?id=eq.' + id, { method:'PATCH', headers: hdr, body });
+    const check = await fetch(base + '/rest/v1/cnx_data?id=eq.' + id + '&select=id', { headers: hdr });
+    const rows = await check.json().catch(() => []);
+    if (!rows.length) {
+      await fetch(base + '/rest/v1/cnx_data', { method:'POST', headers: hdr,
+        body: JSON.stringify({ id, payload, updated_at: new Date().toISOString() }) });
+    }
+    _lastBackupDay = day;
+    pruneCloudBackups();
+  } catch(e) { /* backups are best-effort */ }
+}
+
+// Drop snapshots older than BACKUP_KEEP_DAYS so the table doesn't grow forever.
+async function pruneCloudBackups() {
+  try {
+    const cutoff = new Date(Date.now() - BACKUP_KEEP_DAYS * 86400000).toISOString().split('T')[0];
+    await fetch(sbUrl.replace(/\/$/, '') + '/rest/v1/cnx_data?id=lt.' + BACKUP_PREFIX + cutoff + '&id=like.' + BACKUP_PREFIX + '*',
+      { method:'DELETE', headers: { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey } });
+  } catch(e) {}
+}
+
+async function listCloudBackups() {
+  const rows = await sbFetch('/rest/v1/cnx_data?id=like.' + BACKUP_PREFIX + '*&select=id,payload,updated_at&order=id.desc&limit=40');
+  return (rows || []).filter(r => !_payloadIsEmpty(r.payload));
+}
+
+// Header button — pull the newest non-empty cloud snapshot and merge it in.
+// Merge, not replace: existing entries are kept and the snapshot fills the gaps,
+// so restoring can only ever add data back.
+async function restoreFromCloud() {
+  setSyncStatus('syncing', 'RESTORING');
+  try {
+    const backups = await listCloudBackups();
+    if (!backups.length) {
+      // Fall back to the live row before giving up.
+      const live = await sbFetch('/rest/v1/cnx_data?id=eq.' + ROW_ID + '&select=payload,updated_at');
+      if (live && live.length && !_payloadIsEmpty(live[0].payload)) backups.push({ id:'live row', ...live[0] });
+    }
+    if (!backups.length) {
+      setSyncStatus('online', 'ONLINE');
+      showToast('No non-empty cloud backup found. Use ↺ RESTORE for the embedded 1 Sep 2026 snapshot.', 'err', 6000);
+      return;
+    }
+    const b = backups[0];
+    const p = b.payload;
+    const when = b.id.startsWith(BACKUP_PREFIX) ? b.id.slice(BACKUP_PREFIX.length) : (b.updated_at || '').split('T')[0];
+    const counts = `${(p.transactions||[]).length} transactions · ${(p.ccPayments||[]).length} CC payments · ${(p.efLedger||[]).length} EF + ${(p.bufLedger||[]).length} buffer entries`;
+    if (!confirm(`Restore cloud backup from ${when}?\n\n${counts}\n\nExisting entries are kept — this only fills in what is missing.`)) {
+      setSyncStatus('online', 'ONLINE');
+      return;
+    }
+    mergeCloudPayload(p);
+    STATE.seedSuppressed = false;
+    STATE.lastUpdated = Date.now();
+    deriveBalances(); save(); renderCurrentTab();
+    showToast('✓ Restored cloud backup from ' + when, 'ok', 5000);
+  } catch(e) {
+    setSyncStatus('error', 'RESTORE FAILED');
+    showToast('⚠️ Cloud restore failed: ' + (e.message || e), 'err', 6000);
+  }
+}
+
+// Same gap-filling merge the embedded snapshot uses, against an arbitrary payload.
+function mergeCloudPayload(p) {
+  if (!p) return false;
+  const byId = (cur, incoming) => {
+    const have = new Set((cur || []).map(e => e.id));
+    return (cur || []).concat((incoming || []).filter(e => !have.has(e.id)));
+  };
+  ['transactions','ccPayments','ccExpenses','efLedger','bufLedger','bikeLog','reLog','investments','forecastNotes']
+    .forEach(k => { STATE[k] = byId(STATE[k], p[k]); });
+  ['additionalIncome','balanceAdjust'].forEach(k => {
+    const inc = p[k] || {};
+    STATE[k] = STATE[k] || {};
+    Object.keys(inc).forEach(month => { STATE[k][month] = byId(STATE[k][month], inc[month]); });
+  });
+  Object.keys(p.notes || {}).forEach(m => { STATE.notes = STATE.notes || {}; if (!STATE.notes[m]) STATE.notes[m] = p.notes[m]; });
+  normalizeState();
+  return true;
 }
 
 async function pullFromSupabase(silent = false) {
@@ -1052,6 +1206,15 @@ async function pullFromSupabase(silent = false) {
     const localTs   = STATE.lastUpdated  || 0;
     // v4.1: last-write-wins on timestamp only. The old "more transactions wins"
     // rule resurrected locally-deleted transactions on the next poll.
+    // v4.7 GUARD: an EMPTY remote payload never overwrites a populated local
+    // one, however new its timestamp. That is the exact shape of the accident
+    // this version is recovering from — one device coming up blank and pushing
+    // its emptiness over everything else.
+    if (remoteTs > localTs && _payloadIsEmpty(remote) && !_stateIsEmpty()) {
+      setSyncStatus('online', 'ONLINE');
+      showToast('⚠️ Cloud copy is empty — kept your local data. Press ↑ PUSH to repair the cloud.', 'err', 8000);
+      return;
+    }
     if (remoteTs > localTs) {
       STATE = { ...STATE, ...remote };
       normalizeState();
@@ -1093,6 +1256,65 @@ function normalizeState() {
   STATE.balanceAdjust    = STATE.balanceAdjust    || {};
   if (STATE.efOpening  === undefined) STATE.efOpening  = null;
   if (STATE.bufOpening === undefined) STATE.bufOpening = null;
+  backfillLedgerMonths();
+  applyDeclaredOpenings();
+}
+
+// The earliest EF/Buffer ledger entries were written before the `month` field
+// existed — they carry only a `date`. Every month-based lookup
+// (getEFLoggedForMonth, _confKeeps, the monthly log rows) silently skipped
+// them. Derive the month from the date so they behave like every other entry.
+function backfillLedgerMonths() {
+  [STATE.efLedger, STATE.bufLedger].forEach(ledger => {
+    (ledger || []).forEach(e => {
+      if (!e.month && typeof e.date === 'string' && e.date.length >= 7) e.month = e.date.slice(0,7);
+    });
+  });
+}
+
+// v4.7 — apply the declared August baselines ONCE to any state that predates
+// them (old localStorage, an old cloud payload, an imported backup), then stamp
+// the revision so it never fires again. Without the stamp this would overwrite
+// a baseline Kay sets by hand on the EF & Buffer tab every time the page
+// reloaded; with it, a manual SET BASELINE sticks.
+function applyDeclaredOpenings() {
+  if (STATE.openingRev === OPENING_REV) return false;
+  STATE.efOpening  = { ...DEFAULT_EF_OPENING };
+  STATE.bufOpening = { ...DEFAULT_BUF_OPENING };
+  STATE.openingRev = OPENING_REV;
+  return true;
+}
+
+// ===============================================
+//  HISTORIC DATA RESTORE
+// ===============================================
+// The 2026-09-01 export is embedded in the page. A device that has no data at
+// all (fresh browser, cleared storage, or the crash above having stopped the
+// app from ever reading storage) is repopulated from it on load. It is a merge
+// by id, never a wipe: anything already present wins, the snapshot only fills
+// gaps. The cloud pull still runs afterwards and last-write-wins as usual.
+function _stateIsEmpty() {
+  return !(STATE.transactions.length || STATE.ccPayments.length || STATE.ccExpenses.length
+        || STATE.efLedger.length || STATE.bufLedger.length || STATE.investments.length);
+}
+// Empty AND not emptied on purpose — the condition for auto-restoring.
+function _shouldAutoSeed() { return _stateIsEmpty() && !STATE.seedSuppressed; }
+
+function mergeHistoricSeed() {
+  if (!HISTORIC_SEED) return false;
+  return mergeCloudPayload(HISTORIC_SEED);   // same gap-filling merge, local source
+}
+
+// Manual restore — header button. Safe to press twice: the merge is by id.
+function restoreHistoric() {
+  if (!HISTORIC_SEED) { showToast('❌ No historic snapshot embedded in this file', 'err', 4000); return; }
+  const n = (HISTORIC_SEED.transactions || []).length;
+  if (!confirm('Restore the 1 Sep 2026 historic snapshot (' + n + ' transactions, CC payments, EF/Buffer ledgers, notes)?\n\nExisting entries are kept — this only fills in what is missing.')) return;
+  mergeHistoricSeed();
+  STATE.seedSuppressed = false;
+  STATE.lastUpdated = Date.now();
+  deriveBalances(); save(); renderCurrentTab();
+  showToast('✓ Historic data restored & synced', 'ok', 4000);
 }
 
 async function forcePush() { _isSyncing = false; setSyncStatus('syncing', 'PUSHING'); await pushToSupabase(false); }
@@ -1125,6 +1347,7 @@ function _connectWS() {
           if (!remote) return;
           const remoteTs  = remote.lastUpdated || 0;
           const localTs   = STATE.lastUpdated  || 0;
+          if (_payloadIsEmpty(remote) && !_stateIsEmpty()) return; // same empty-wipe guard as the poll path
           if (remoteTs > localTs) {
             STATE = { ...STATE, ...remote };
             normalizeState();
@@ -1183,7 +1406,14 @@ const fmt = n => '₹' + Math.abs(Math.round(n)).toLocaleString('en-IN');
 // v4.1 — escape user-entered strings before innerHTML interpolation (stored-XSS guard,
 // important because state syncs through a world-writable Supabase row).
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-const fmtM = k => { const [y,m]=k.split('-'); return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m-1]+' '+y; };
+// v4.7 — tolerate a missing/odd key instead of throwing. The oldest ledger
+// entries in the historic data predate the `month` field, and one fmtM(undefined)
+// inside a .map() was enough to take the whole EF & Buffer tab down with it.
+const fmtM = k => {
+  if (!k || typeof k !== 'string' || !k.includes('-')) return '—';
+  const [y,m]=k.split('-');
+  return (['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m-1] || '?')+' '+y;
+};
 const getPlan = key => MDATA_PLAN.find(m => m.key === key) || MDATA_PLAN[0];
 const getPhase = key => {
   const idx = PLAN.findIndex(m => m.key === key);
@@ -2792,7 +3022,12 @@ function handleImport(ev) {
 function resetData() {
   if (!confirm('Reset ALL CNX data? This clears transactions, ledgers, payments, notes — everything. Export a backup first!')) return;
   if (!confirm('Absolutely sure? This cannot be undone (and will overwrite the cloud copy).')) return;
+  // seedSuppressed keeps a deliberate RESET meaning reset: without it the next
+  // reload would see an empty state and helpfully repopulate the historic
+  // snapshot. Dated cloud backups and the ↺ RESTORE button still get the data
+  // back on demand.
   STATE = {
+    seedSuppressed: true,
     transactions: [],
     cc1Paid: 0, cc2Paid: 0,
     ccPayments: [],
@@ -2838,6 +3073,14 @@ document.addEventListener('keydown', e => {
 function init() {
   load();
   normalizeState();
+  // Nothing stored locally — repopulate from the embedded 1 Sep 2026 snapshot
+  // so the app is never blank. Keeps the snapshot's own lastUpdated so a
+  // genuinely newer cloud copy still wins the pull below.
+  let seededLocally = false;
+  if (_shouldAutoSeed() && mergeHistoricSeed()) {
+    STATE.lastUpdated = HISTORIC_SEED.lastUpdated || STATE.lastUpdated || 0;
+    seededLocally = true;
+  }
   // Open on the current real month if inside the plan window
   const realMonth = getCurrentRealMonth();
   if (PLAN.some(m => m.key === realMonth)) curMonth = realMonth;
@@ -2846,7 +3089,16 @@ function init() {
   document.getElementById('hdr-month').textContent = fmtM(curMonth).toUpperCase();
   renderOverview();
   setSyncStatus('syncing', 'CONNECTING');
-  pullFromSupabase(true).then(() => { initRealtimeSDK(); });
+  pullFromSupabase(true).then(() => {
+    // The cloud row may itself be empty (or the pull may have failed) — make
+    // sure we still land on the historic data rather than an empty app.
+    if (_shouldAutoSeed() && mergeHistoricSeed()) {
+      STATE.lastUpdated = HISTORIC_SEED.lastUpdated || Date.now();
+      seededLocally = true;
+    }
+    if (seededLocally) { deriveBalances(); lsSave(); renderCurrentTab(); showToast('↺ Historic data restored from local snapshot', 'ok', 4000); }
+    initRealtimeSDK();
+  });
 }
 
 window.addEventListener('load', init);
