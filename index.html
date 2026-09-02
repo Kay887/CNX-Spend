@@ -285,12 +285,13 @@ select.inp{appearance:none;cursor:pointer}
 );
 alter table cnx_data enable row level security;
 create policy "public rw" on cnx_data for all using (true);</code>
-      <strong>STEP 3</strong> — Settings → API → copy URL &amp; anon key below
+      <strong>STEP 3</strong> — Settings → API Keys → copy the Project URL &amp; the
+      <em>anon / publishable</em> key below (either <code>eyJ…</code> or <code>sb_publishable_…</code> works)
     </div>
     <div class="fl"><label class="lbl">SUPABASE PROJECT URL</label>
       <input class="inp" id="sb-url-inp" placeholder="https://xxxx.supabase.co" autocomplete="off"/></div>
-    <div class="fl"><label class="lbl">SUPABASE ANON KEY</label>
-      <input class="inp" id="sb-key-inp" placeholder="eyJ..." type="password" autocomplete="off"/></div>
+    <div class="fl"><label class="lbl">SUPABASE ANON / PUBLISHABLE KEY</label>
+      <input class="inp" id="sb-key-inp" placeholder="eyJ…  or  sb_publishable_…" type="password" autocomplete="off"/></div>
     <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
       <button class="btn btn-p" style="flex:1" onclick="saveSupabaseConfig()">CONNECT &amp; SYNC</button>
       <button class="modal-skip" onclick="skipSetup()">Skip — use offline only</button>
@@ -962,8 +963,11 @@ let trCatFilter = 'All';
 // ===============================================
 //  SUPABASE SYNC ENGINE
 // ===============================================
-const SB_HARDCODED_URL = 'https://alxtlzxbjpxxdrpohnvb.supabase.co';
-const SB_HARDCODED_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFseHRsenhianB4eGRycG9obnZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0NTM3NTUsImV4cCI6MjA5MDAyOTc1NX0.7B41JEAgwt0LmubRQoq4csfTdH4J_I2DXUzHe7iGZkw';
+// Project `hzpdbhufpceikcbqgpiv`. The previous project (`alxtlzxbjpxxdrpohnvb`)
+// was deleted and no longer resolves in DNS, which is why every sync call
+// failed at the network layer with no HTTP status to report.
+const SB_HARDCODED_URL = 'https://hzpdbhufpceikcbqgpiv.supabase.co';
+const SB_HARDCODED_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh6cGRiaHVmcGNlaWtjYnFncGl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NTIxNzgsImV4cCI6MjA5ODAyODE3OH0.7H7Uh1WjDBFNbRukluvLsKnqrytCHm3LnNllobf4dw8';
 const SB_CONFIG_KEY = 'cnx_sb_config';
 const LS_KEY        = 'cnx_v4';
 const ROW_ID        = 'cnx_kay_main';
@@ -976,15 +980,29 @@ let sbReady   = true;
 let pollTimer = null;
 let _isSyncing = false;
 
+// Projects that no longer exist. A saved localStorage config takes priority over
+// the hardcoded default, so without this list every device that ever connected
+// to the old project would keep using it forever and stay broken no matter how
+// many times the constants above are updated.
+const SB_DEAD_PROJECTS = ['alxtlzxbjpxxdrpohnvb'];
+
 (function applySavedConfig() {
   try {
     const c = localStorage.getItem(SB_CONFIG_KEY);
     if (c) {
       const cfg = JSON.parse(c);
-      if (cfg.url && cfg.key) { sbUrl = cfg.url.replace(/\/$/, ''); sbKey = cfg.key; }
+      const isDead = cfg.url && SB_DEAD_PROJECTS.some(ref => cfg.url.includes(ref));
+      if (isDead) { try { localStorage.removeItem(SB_CONFIG_KEY); } catch(e) {} }
+      else if (cfg.url && cfg.key) { sbUrl = cfg.url.replace(/\/$/, ''); sbKey = cfg.key; }
     }
   } catch(e) {}
-  if (!sbUrl || sbUrl.includes('xxxx') || !sbKey || sbKey.length < 50) {
+  // Key shape check. Supabase now issues TWO key formats: the legacy JWT anon
+  // key (`eyJ...`, ~200 chars) and the current publishable key
+  // (`sb_publishable_...`, ~45 chars). The old `length < 50` test silently threw
+  // away every publishable key and reverted to the hardcoded project, so
+  // reconnecting to a NEW project appeared to succeed and then did nothing.
+  const keyLooksValid = !!sbKey && (sbKey.startsWith('sb_') ? sbKey.length >= 20 : sbKey.length >= 50);
+  if (!sbUrl || sbUrl.includes('xxxx') || !keyLooksValid) {
     sbUrl = SB_HARDCODED_URL.replace(/\/$/, '');
     sbKey = SB_HARDCODED_KEY;
     try { localStorage.removeItem(SB_CONFIG_KEY); } catch(e) {}
@@ -1542,6 +1560,9 @@ async function runSyncDiagnostics() {
     L.push('  → the browser could not reach the project at all.');
     L.push('    Causes: no internet · Supabase project PAUSED or deleted ·');
     L.push('    DNS/proxy blocking · opened from a context with no network.');
+    L.push('    If the rest of the internet works, the project itself is gone:');
+    L.push('    open ⚙ SYNC SETUP and point CNX at a live project. Your data is');
+    L.push('    safe in this browser — reconnecting then MERGE PUSH restores it.');
   }
 
   L.push('\n[4] THE LIVE ROW');
@@ -1567,7 +1588,11 @@ async function runSyncDiagnostics() {
     } catch(e) {
       line('READ FAILED', (e.message || e));
       if (/404|relation|does not exist/i.test(e.message || '')) L.push('  → table cnx_data is missing. Run the SQL from the sync setup modal.');
-      if (/401|403|JWT|permission/i.test(e.message || '')) L.push('  → key rejected or RLS is blocking. Check the anon key and the policy.');
+      if (/42501|permission denied/i.test(e.message || '')) {
+        L.push('  → the key is VALID but the anon role has no table privileges.');
+        L.push('    An RLS policy alone is not enough — PostgREST needs the GRANT too.');
+        L.push('    Fix in the SQL editor: GRANT ALL ON public.cnx_data TO anon;');
+      } else if (/401|403|JWT/i.test(e.message || '')) L.push('  → key rejected. Check the anon key.');
     }
   } else line('skipped', 'project unreachable');
 
