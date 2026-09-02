@@ -299,6 +299,19 @@ create policy "public rw" on cnx_data for all using (true);</code>
   </div>
 </div>
 
+<!-- DIAGNOSTICS MODAL -->
+<div class="modal-bg" id="diag-modal" style="display:none">
+  <div class="modal-box" style="max-width:760px">
+    <h2>🩺 SYNC DIAGNOSTICS</h2>
+    <p>Runs the whole sync path for real and reports which step fails. The report is copied to your clipboard automatically — paste it back for a diagnosis.</p>
+    <pre id="diag-body" style="background:var(--bg);border:1px solid var(--b1);border-radius:8px;padding:14px;font-family:var(--mn);font-size:10px;line-height:1.65;color:var(--t1);max-height:60vh;overflow:auto;white-space:pre-wrap;word-break:break-word"></pre>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-p" style="flex:1" onclick="runSyncDiagnostics()">RE-RUN</button>
+      <button class="btn btn-o" onclick="closeDiag()">CLOSE</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div id="toast" style="display:none" class="toast"></div>
 
@@ -318,6 +331,7 @@ create policy "public rw" on cnx_data for all using (true);</code>
     <div style="font-family:var(--mn);font-size:8px;color:var(--t3)" id="last-saved"></div>
     <button class="hdr-btn" onclick="exportData()">EXPORT</button>
     <button class="hdr-btn" onclick="document.getElementById('import-file').click()" style="border-color:rgba(0,217,104,.3);color:var(--gn)">IMPORT</button>
+    <button class="hdr-btn" onclick="runSyncDiagnostics()" style="border-color:rgba(157,111,255,.45);color:var(--pu)" title="Run a full sync self-test and show exactly what is failing">🩺 DIAGNOSE</button>
     <button class="hdr-btn" onclick="mergePushToSupabase()" style="border-color:rgba(0,217,104,.45);color:var(--gn)" title="Merge this device's data INTO the cloud — only adds, never overwrites">⇧ MERGE PUSH</button>
     <button class="hdr-btn" onclick="forcePush()" style="border-color:rgba(255,61,90,.3);color:var(--rd)" title="DANGER: replaces the entire cloud copy with this device's data">↑ PUSH (REPLACE)</button>
     <button class="hdr-btn" onclick="forcePull()" style="border-color:rgba(157,111,255,.3);color:var(--pu)" title="Force pull cloud data to this device">↓ PULL</button>
@@ -1022,16 +1036,39 @@ const lsLoad = () => {
 // Every device then agrees on the ordering however wrong its own clock is.
 // Entry `id`s deliberately stay on the local clock — they are identity, not
 // ordering, and _confKeeps() depends on their existing values.
-let _clockSkew = 0;   // serverNow − localNow, in ms
+// TWO TRAPS, both of which broke sync when this was first written:
+//
+// 1. The HTTP `Date` header has ONE-SECOND resolution — it truncates the
+//    milliseconds. Taking `Date.parse(header) - Date.now()` literally therefore
+//    produced a skew up to 999ms NEGATIVE even against a perfectly synced
+//    server, so every write after the first pull got stamped up to a second in
+//    the PAST. A device could push a genuinely newer payload carrying an OLDER
+//    timestamp, and every other device would ignore it. We correct for the
+//    truncation (mid-bucket) and ignore anything under the threshold: the
+//    problem worth fixing is a clock minutes or hours out, not milliseconds.
+//
+// 2. Even with a good skew, nothing guaranteed successive stamps INCREASE.
+//    syncNow() is now monotonic per device and always beats the timestamp of
+//    the state it is stamping, so a save can never look older than what it
+//    replaces.
+const SKEW_MIN_MS = 5000;   // below this, treat the clocks as agreeing
+let _clockSkew = 0;         // serverNow − localNow, in ms
+let _lastStamp = 0;
 function _noteServerClock(res) {
   try {
     const h = res && res.headers && res.headers.get('date');
     if (!h) return;
     const t = Date.parse(h);
-    if (!isNaN(t)) _clockSkew = t - Date.now();
+    if (isNaN(t)) return;
+    const raw = (t + 500) - Date.now();   // +500 = middle of the 1-second bucket
+    _clockSkew = Math.abs(raw) < SKEW_MIN_MS ? 0 : raw;
   } catch(e) {}
 }
-function syncNow() { return Date.now() + _clockSkew; }
+function syncNow() {
+  const t = Date.now() + _clockSkew;
+  _lastStamp = Math.max(t, _lastStamp + 1, (STATE.lastUpdated || 0) + 1);
+  return _lastStamp;
+}
 
 async function sbFetch(path, opts = {}) {
   const headers = { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey, 'Content-Type': 'application/json' };
@@ -1445,6 +1482,131 @@ async function mergePushToSupabase() {
     showToast('⚠️ Merge push failed: ' + (e.message || e), 'err', 6000);
   }
 }
+
+// ===============================================
+//  SYNC DIAGNOSTICS
+// ===============================================
+// "Sync isn't working" can mean at least six different things: the project is
+// unreachable, the table is missing, RLS is refusing, the row is empty, the
+// timestamps are ordering wrongly, or the websocket joined but delivers
+// nothing. Guessing between them from the outside is hopeless — this runs the
+// whole path for real and reports exactly which step failed.
+function _sum(list) { return Array.isArray(list) ? list.length : 0; }
+function _newestTx(p) {
+  const t = (p && p.transactions) || [];
+  return t.length ? t.map(x => x.date).sort().slice(-1)[0] : '—';
+}
+function _stamp(ms) { return ms ? new Date(ms).toLocaleString('en-IN') + '  (' + ms + ')' : 'never (0)'; }
+function _counts(p) {
+  return `tx ${_sum(p.transactions)} · ccPay ${_sum(p.ccPayments)} · ccExp ${_sum(p.ccExpenses)} · ef ${_sum(p.efLedger)} · buf ${_sum(p.bufLedger)} · inv ${_sum(p.investments)}`;
+}
+
+async function runSyncDiagnostics() {
+  const L = [];
+  const line = (k, v) => L.push(String(k).padEnd(22) + ': ' + v);
+  L.push('CNX SYNC DIAGNOSTICS — ' + new Date().toLocaleString('en-IN'));
+  L.push('='.repeat(58));
+
+  L.push('\n[1] CONFIG');
+  line('project url', sbUrl || '(none)');
+  line('anon key', sbKey ? sbKey.slice(0, 12) + '… (' + sbKey.length + ' chars)' : '(none)');
+  line('sbReady', sbReady);
+  line('row id', ROW_ID);
+
+  L.push('\n[2] THIS DEVICE');
+  line('local counts', _counts(STATE));
+  line('newest tx date', _newestTx(STATE));
+  line('lastUpdated', _stamp(STATE.lastUpdated));
+  line('seedSuppressed', !!STATE.seedSuppressed);
+  line('EF baseline', STATE.efOpening ? fmt(STATE.efOpening.amt) + ' @ ' + STATE.efOpening.month : 'none');
+  line('Buffer baseline', STATE.bufOpening ? fmt(STATE.bufOpening.amt) + ' @ ' + STATE.bufOpening.month : 'none');
+  line('snapshot embedded', HISTORIC_SEED ? _counts(HISTORIC_SEED) : 'MISSING');
+
+  L.push('\n[3] REACHING SUPABASE');
+  let reachable = false, liveRow = null;
+  try {
+    const res = await fetch(sbUrl + '/rest/v1/cnx_data?select=id&limit=1', {
+      headers: { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey }
+    });
+    _noteServerClock(res);
+    line('HTTP status', res.status + (res.ok ? ' OK' : ' ← PROBLEM'));
+    const body = await res.text();
+    if (!res.ok) line('error body', body.slice(0, 300));
+    else reachable = true;
+    const dh = res.headers.get('date');
+    line('server time', dh || '(no Date header)');
+    line('device time', new Date().toUTCString());
+    line('measured skew', _clockSkew + ' ms' + (_clockSkew === 0 ? ' (clocks agree)' : ' ← device clock is off'));
+  } catch(e) {
+    line('FETCH FAILED', (e.message || e));
+    L.push('  → the browser could not reach the project at all.');
+    L.push('    Causes: no internet · Supabase project PAUSED or deleted ·');
+    L.push('    DNS/proxy blocking · opened from a context with no network.');
+  }
+
+  L.push('\n[4] THE LIVE ROW');
+  if (reachable) {
+    try {
+      const rows = await sbFetch('/rest/v1/cnx_data?id=eq.' + ROW_ID + '&select=payload,updated_at');
+      if (!rows || !rows.length) {
+        line('row', 'DOES NOT EXIST ← nothing has ever been saved to the cloud');
+      } else {
+        liveRow = rows[0];
+        const p = liveRow.payload || {};
+        line('row', 'exists');
+        line('cloud counts', _counts(p));
+        line('cloud newest tx', _newestTx(p));
+        line('cloud lastUpdated', _stamp(p.lastUpdated));
+        line('cloud updated_at', liveRow.updated_at || '—');
+        line('cloud is empty?', _payloadIsEmpty(p) ? 'YES ← this is why nothing loads' : 'no');
+        const rt = p.lastUpdated || 0, lt = STATE.lastUpdated || 0;
+        line('ordering', rt > lt ? 'cloud is NEWER → pull applies'
+                        : rt < lt ? 'device is NEWER → your next save wins'
+                                  : 'identical → neither overwrites');
+      }
+    } catch(e) {
+      line('READ FAILED', (e.message || e));
+      if (/404|relation|does not exist/i.test(e.message || '')) L.push('  → table cnx_data is missing. Run the SQL from the sync setup modal.');
+      if (/401|403|JWT|permission/i.test(e.message || '')) L.push('  → key rejected or RLS is blocking. Check the anon key and the policy.');
+    }
+  } else line('skipped', 'project unreachable');
+
+  L.push('\n[5] DATED BACKUPS');
+  if (reachable) {
+    try {
+      const b = await listCloudBackups();
+      line('non-empty backups', b.length);
+      b.slice(0, 8).forEach(r => L.push('   · ' + r.id + '  →  ' + _counts(r.payload) + '  · newest tx ' + _newestTx(r.payload)));
+      if (!b.length) L.push('   (none yet — dated backups only start once a save succeeds on this build)');
+    } catch(e) { line('LIST FAILED', (e.message || e)); }
+  } else line('skipped', 'project unreachable');
+
+  L.push('\n[6] REALTIME');
+  const wsState = ['CONNECTING','OPEN','CLOSING','CLOSED'][_ws ? _ws.readyState : 3];
+  line('websocket', _ws ? wsState : 'not connected');
+  line('ws retries', _wsRetries + ' / ' + WS_MAX_RETRIES);
+  line('safety poll', pollTimer ? 'RUNNING' : 'STOPPED ← changes would need a refresh');
+
+  L.push('\n[7] VERDICT');
+  if (!reachable) L.push('  ✗ Cannot reach Supabase. Nothing else can work until that does.');
+  else if (!liveRow) L.push('  ✗ Cloud row missing. Press ⇧ MERGE PUSH to create it from this device.');
+  else if (_payloadIsEmpty(liveRow.payload)) L.push('  ✗ Cloud row is EMPTY. Press ⇧ MERGE PUSH to repopulate it from this device.');
+  else {
+    const cp = liveRow.payload;
+    if (_sum(cp.transactions) > _sum(STATE.transactions))
+      L.push('  ! Cloud has MORE data than this device. Press ↓ PULL to bring it down.');
+    else if (_sum(STATE.transactions) > _sum(cp.transactions))
+      L.push('  ! This device has MORE data than the cloud. Press ⇧ MERGE PUSH to send it up.');
+    else L.push('  ✓ Device and cloud agree. Sync is healthy.');
+  }
+
+  const report = L.join('\n');
+  document.getElementById('diag-body').textContent = report;
+  document.getElementById('diag-modal').style.display = 'flex';
+  try { await navigator.clipboard.writeText(report); showToast('✓ Report copied to clipboard', 'ok', 3000); } catch(e) {}
+  return report;
+}
+function closeDiag() { document.getElementById('diag-modal').style.display = 'none'; }
 
 // v4.7 REALTIME FIX — polling is now never switched off, only slowed down.
 //
@@ -3253,11 +3415,17 @@ function init() {
   load();
   normalizeState();
   // Nothing stored locally — repopulate from the embedded 1 Sep 2026 snapshot
-  // so the app is never blank. Keeps the snapshot's own lastUpdated so a
-  // genuinely newer cloud copy still wins the pull below.
+  // so the app is never blank.
+  //
+  // Stamp it timestamp ZERO, never the snapshot's own date. The embedded
+  // snapshot is a FALLBACK, not an authority: if the cloud holds anything at
+  // all — including entries made after that export was taken — it must win the
+  // comparison in the pull below. Claiming the export date here would let a
+  // stale local snapshot suppress newer cloud data, which looks exactly like
+  // "yesterday's entries are missing".
   let seededLocally = false;
   if (_shouldAutoSeed() && mergeHistoricSeed()) {
-    STATE.lastUpdated = HISTORIC_SEED.lastUpdated || STATE.lastUpdated || 0;
+    STATE.lastUpdated = 0;
     seededLocally = true;
   }
   // Open on the current real month if inside the plan window
@@ -3272,7 +3440,7 @@ function init() {
     // The cloud row may itself be empty (or the pull may have failed) — make
     // sure we still land on the historic data rather than an empty app.
     if (_shouldAutoSeed() && mergeHistoricSeed()) {
-      STATE.lastUpdated = HISTORIC_SEED.lastUpdated || Date.now();
+      STATE.lastUpdated = 0;   // fallback only — see note above
       seededLocally = true;
     }
     if (seededLocally) { deriveBalances(); lsSave(); renderCurrentTab(); showToast('↺ Historic data restored from local snapshot', 'ok', 4000); }
