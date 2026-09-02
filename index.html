@@ -292,6 +292,11 @@ create policy "public rw" on cnx_data for all using (true);</code>
       <input class="inp" id="sb-url-inp" placeholder="https://xxxx.supabase.co" autocomplete="off"/></div>
     <div class="fl"><label class="lbl">SUPABASE ANON / PUBLISHABLE KEY</label>
       <input class="inp" id="sb-key-inp" placeholder="eyJ…  or  sb_publishable_…" type="password" autocomplete="off"/></div>
+    <div class="fl"><label class="lbl">SYNC PASSPHRASE</label>
+      <input class="inp" id="sb-secret-inp" placeholder="the passphrase set in your RLS policy" type="password" autocomplete="off"/>
+      <div style="font-size:9px;color:var(--t3);margin-top:3px;font-family:var(--mn)">
+        Never stored in this file — kept in this browser only. Enter it once per device.
+      </div></div>
     <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
       <button class="btn btn-p" style="flex:1" onclick="saveSupabaseConfig()">CONNECT &amp; SYNC</button>
       <button class="modal-skip" onclick="skipSetup()">Skip — use offline only</button>
@@ -969,6 +974,13 @@ let trCatFilter = 'All';
 const SB_HARDCODED_URL = 'https://hzpdbhufpceikcbqgpiv.supabase.co';
 const SB_HARDCODED_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh6cGRiaHVmcGNlaWtjYnFncGl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NTIxNzgsImV4cCI6MjA5ODAyODE3OH0.7H7Uh1WjDBFNbRukluvLsKnqrytCHm3LnNllobf4dw8';
 const SB_CONFIG_KEY = 'cnx_sb_config';
+// The sync passphrase is stored ONLY in localStorage, never in this file. The
+// anon key above is public by design and travels with any copy of this HTML
+// (including one pushed to GitHub); on its own it now grants nothing, because
+// the RLS policy additionally requires the `x-cnx-key` header this passphrase
+// supplies. Hardcoding the passphrase here would hand both halves to anyone
+// holding the file and make the gate pointless.
+const SB_SECRET_KEY = 'cnx_sb_secret';
 const LS_KEY        = 'cnx_v4';
 const ROW_ID        = 'cnx_kay_main';
 const POLL_MS       = 8000;
@@ -976,7 +988,20 @@ const SLOW_POLL_MS  = 30000;  // safety poll kept running while the websocket is
 
 let sbUrl     = SB_HARDCODED_URL.replace(/\/$/, '');
 let sbKey     = SB_HARDCODED_KEY;
+let sbSecret  = '';
 let sbReady   = true;
+
+try { sbSecret = localStorage.getItem(SB_SECRET_KEY) || ''; } catch(e) {}
+
+// Single source of truth for request headers. Every REST call goes through this
+// so the passphrase header can never be forgotten at one call site — a miss
+// would surface as a silent, confusing 200-with-zero-rows rather than an error.
+function sbHeaders(withBody) {
+  const h = { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey };
+  if (withBody !== false) h['Content-Type'] = 'application/json';
+  if (sbSecret) h['x-cnx-key'] = sbSecret;
+  return h;
+}
 let pollTimer = null;
 let _isSyncing = false;
 
@@ -1089,7 +1114,7 @@ function syncNow() {
 }
 
 async function sbFetch(path, opts = {}) {
-  const headers = { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey, 'Content-Type': 'application/json' };
+  const headers = sbHeaders();
   if (opts.prefer) headers['Prefer'] = opts.prefer;
   const res = await fetch(sbUrl + path, {
     headers, method: opts.method || 'GET',
@@ -1113,18 +1138,18 @@ async function pushToSupabase(debounce = true) {
     const base = sbUrl.replace(/\/$/, '');
     let res = await fetch(base + '/rest/v1/cnx_data?id=eq.' + ROW_ID, {
       method: 'PATCH',
-      headers: { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey, 'Content-Type': 'application/json' },
+      headers: sbHeaders(),
       body: JSON.stringify({ payload, updated_at: new Date().toISOString() })
     });
     if (res.status === 204 || res.ok) {
       const check = await fetch(base + '/rest/v1/cnx_data?id=eq.' + ROW_ID + '&select=id', {
-        headers: { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey }
+        headers: sbHeaders(false)
       });
       const rows = await check.json().catch(() => []);
       if (!rows.length) {
         res = await fetch(base + '/rest/v1/cnx_data', {
           method: 'POST',
-          headers: { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey, 'Content-Type': 'application/json' },
+          headers: sbHeaders(),
           body: JSON.stringify({ id: ROW_ID, payload, updated_at: new Date().toISOString() })
         });
       }
@@ -1174,7 +1199,7 @@ async function writeCloudBackup(payload) {
     if (_lastBackupDay === day) return;
     const id = BACKUP_PREFIX + day;
     const base = sbUrl.replace(/\/$/, '');
-    const hdr = { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey, 'Content-Type': 'application/json' };
+    const hdr = sbHeaders();
     const body = JSON.stringify({ payload, updated_at: new Date().toISOString() });
     const res = await fetch(base + '/rest/v1/cnx_data?id=eq.' + id, { method:'PATCH', headers: hdr, body });
     const check = await fetch(base + '/rest/v1/cnx_data?id=eq.' + id + '&select=id', { headers: hdr });
@@ -1193,7 +1218,7 @@ async function pruneCloudBackups() {
   try {
     const cutoff = new Date(Date.now() - BACKUP_KEEP_DAYS * 86400000).toISOString().split('T')[0];
     await fetch(sbUrl.replace(/\/$/, '') + '/rest/v1/cnx_data?id=lt.' + BACKUP_PREFIX + cutoff + '&id=like.' + BACKUP_PREFIX + '*',
-      { method:'DELETE', headers: { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey } });
+      { method:'DELETE', headers: sbHeaders(false) });
   } catch(e) {}
 }
 
@@ -1259,6 +1284,19 @@ function mergeCloudPayload(p) {
 
 async function pullFromSupabase(silent = false) {
   if (!sbReady || _isSyncing) return;
+  // A missing passphrase is the one failure that does NOT look like a failure:
+  // RLS filters every row out and PostgREST answers 200 with [], which the code
+  // below would read as "the cloud is empty" — and the user, believing that,
+  // would MERGE PUSH over a perfectly good cloud copy. Refuse to sync at all
+  // rather than let an unauthenticated device form an opinion about the cloud.
+  if (!sbSecret) {
+    setSyncStatus('error', 'NO PASSPHRASE');
+    if (!silent) {
+      showToast('🔒 Sync passphrase needed on this device — opening setup.', 'err', 6000);
+      openSetupModal();
+    }
+    return;
+  }
   if (!silent) setSyncStatus('syncing', 'CHECKING');
   try {
     const rows = await sbFetch('/rest/v1/cnx_data?id=eq.' + ROW_ID + '&select=payload,updated_at');
@@ -1436,9 +1474,10 @@ function _buildUnion(cloud, local) {
 
 async function mergePushToSupabase() {
   if (!sbReady) { showToast('⚠️ Not connected to Supabase', 'err', 4000); return; }
+  if (!sbSecret) { showToast('🔒 Sync passphrase needed before pushing.', 'err', 5000); openSetupModal(); return; }
   setSyncStatus('syncing', 'MERGING');
   const base = sbUrl.replace(/\/$/, '');
-  const hdr  = { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey, 'Content-Type': 'application/json' };
+  const hdr  = sbHeaders();
   try {
     const rows     = await sbFetch('/rest/v1/cnx_data?id=eq.' + ROW_ID + '&select=payload,updated_at');
     const cloudRow = rows && rows.length ? rows[0] : null;
@@ -1528,6 +1567,7 @@ async function runSyncDiagnostics() {
   L.push('\n[1] CONFIG');
   line('project url', sbUrl || '(none)');
   line('anon key', sbKey ? sbKey.slice(0, 12) + '… (' + sbKey.length + ' chars)' : '(none)');
+  line('sync passphrase', sbSecret ? 'set (' + sbSecret.length + ' chars, this browser only)' : 'MISSING ← sync cannot work');
   line('sbReady', sbReady);
   line('row id', ROW_ID);
 
@@ -1544,7 +1584,7 @@ async function runSyncDiagnostics() {
   let reachable = false, liveRow = null;
   try {
     const res = await fetch(sbUrl + '/rest/v1/cnx_data?select=id&limit=1', {
-      headers: { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey }
+      headers: sbHeaders(false)
     });
     _noteServerClock(res);
     line('HTTP status', res.status + (res.ok ? ' OK' : ' ← PROBLEM'));
@@ -1570,7 +1610,11 @@ async function runSyncDiagnostics() {
     try {
       const rows = await sbFetch('/rest/v1/cnx_data?id=eq.' + ROW_ID + '&select=payload,updated_at');
       if (!rows || !rows.length) {
-        line('row', 'DOES NOT EXIST ← nothing has ever been saved to the cloud');
+        line('row', 'NOT VISIBLE ← empty result');
+        L.push('  → either nothing was ever saved, OR the passphrase is wrong.');
+        L.push('    A wrong passphrase is not an error: RLS filters every row out');
+        L.push('    and returns 200 with []. Re-enter it in ⚙ SYNC SETUP before');
+        L.push('    pushing — pushing now could overwrite a good cloud copy.');
       } else {
         liveRow = rows[0];
         const p = liveRow.payload || {};
@@ -1703,8 +1747,10 @@ function _wsBroadcast(payload) {
 function openSetupModal() {
   const urlInp = document.getElementById('sb-url-inp');
   const keyInp = document.getElementById('sb-key-inp');
+  const secInp = document.getElementById('sb-secret-inp');
   if (urlInp && !urlInp.value) urlInp.value = sbUrl;
   if (keyInp && !keyInp.value) keyInp.value = sbKey;
+  if (secInp && !secInp.value) secInp.value = sbSecret;
   document.getElementById('setup-modal').style.display = 'flex';
 }
 function skipSetup() { document.getElementById('setup-modal').style.display = 'none'; }
@@ -1712,14 +1758,26 @@ function skipSetup() { document.getElementById('setup-modal').style.display = 'n
 async function saveSupabaseConfig() {
   const url = document.getElementById('sb-url-inp').value.trim().replace(/\/$/, '');
   const key = document.getElementById('sb-key-inp').value.trim();
+  const secret = document.getElementById('sb-secret-inp').value.trim();
   const status = document.getElementById('modal-status');
-  if (!url || !key) { status.textContent = '⚠️ Both fields required.'; return; }
+  if (!url || !key) { status.textContent = '⚠️ URL and key are required.'; return; }
+  if (!secret) { status.textContent = '⚠️ Sync passphrase is required — without it the database returns nothing.'; return; }
   status.textContent = '⏳ Testing connection...';
   try {
-    const res = await fetch(url + '/rest/v1/cnx_data?limit=1', { headers: { 'apikey': key, 'Authorization': 'Bearer ' + key } });
+    const hdr = { 'apikey': key, 'Authorization': 'Bearer ' + key, 'x-cnx-key': secret };
+    const res = await fetch(url + '/rest/v1/cnx_data?id=eq.' + ROW_ID + '&select=id', { headers: hdr });
     if (!res.ok) throw new Error('HTTP ' + res.status);
+    // A wrong passphrase is NOT an HTTP error — RLS simply filters every row
+    // out and returns 200 with []. Without this check the modal would cheerfully
+    // report success and then sync nothing, which is the worst failure mode of
+    // the lot. Probe the known row: it exists, so [] means the gate rejected us.
+    const rows = await res.json().catch(() => []);
+    if (!Array.isArray(rows) || !rows.length) {
+      throw new Error('passphrase rejected — connected, but the database returned no rows.');
+    }
     localStorage.setItem(SB_CONFIG_KEY, JSON.stringify({ url, key }));
-    sbUrl = url; sbKey = key;
+    localStorage.setItem(SB_SECRET_KEY, secret);
+    sbUrl = url; sbKey = key; sbSecret = secret;
     status.textContent = '✅ Connected! Re-syncing...';
     stopPolling();
     if (_ws) { _ws.close(); _ws = null; }
