@@ -1332,7 +1332,16 @@ async function pullFromSupabase(silent = false) {
       showToast('⚠️ Cloud copy is empty — kept your local data. Press ↑ PUSH to repair the cloud.', 'err', 8000);
       return;
     }
-    if (remoteTs > localTs) {
+    // localTs === 0 means this device has never actually saved (fresh state, or
+    // the historic-seed fallback that init() uses to avoid a blank screen on an
+    // empty device — see the seeding comments in init()). A cloud row that also
+    // has lastUpdated 0/missing (written by an older build, or never re-saved
+    // since this field existed) used to tie `remoteTs > localTs` at 0 > 0 =
+    // false, so the pull silently did nothing and a device stuck on the seed
+    // fallback could never receive real cloud data — indistinguishable from
+    // "sync isn't working". A local 0 never represents a real edit worth
+    // protecting, so any non-empty remote should always win that tie.
+    if (remoteTs > localTs || (localTs === 0 && !_payloadIsEmpty(remote))) {
       STATE = { ...STATE, ...remote };
       normalizeState();
       deriveBalances(); lsSave(); renderCurrentTab();
@@ -1735,7 +1744,7 @@ function _connectWS() {
           const remoteTs  = remote.lastUpdated || 0;
           const localTs   = STATE.lastUpdated  || 0;
           if (_payloadIsEmpty(remote) && !_stateIsEmpty()) return; // same empty-wipe guard as the poll path
-          if (remoteTs > localTs) {
+          if (remoteTs > localTs || (localTs === 0 && !_payloadIsEmpty(remote))) { // same zero-tie fix as pullFromSupabase
             STATE = { ...STATE, ...remote };
             normalizeState();
             deriveBalances(); lsSave(); renderCurrentTab();
@@ -1788,10 +1797,20 @@ async function saveSupabaseConfig() {
     if (!Array.isArray(rows) || !rows.length) {
       throw new Error('passphrase rejected — connected, but the database returned no rows.');
     }
-    localStorage.setItem(SB_CONFIG_KEY, JSON.stringify({ url, key }));
-    localStorage.setItem(SB_SECRET_KEY, secret);
+    let persisted = true;
+    try {
+      localStorage.setItem(SB_CONFIG_KEY, JSON.stringify({ url, key }));
+      localStorage.setItem(SB_SECRET_KEY, secret);
+    } catch(storageErr) {
+      // Storage is restricted (e.g. some private-browsing configurations). The
+      // connection test above already succeeded, so still use it for this
+      // session — just warn that it won't survive a reload/new tab.
+      persisted = false;
+    }
     sbUrl = url; sbKey = key; sbSecret = secret;
-    status.textContent = '✅ Connected! Re-syncing...';
+    status.textContent = persisted
+      ? '✅ Connected! Re-syncing...'
+      : '⚠️ Connected for this session only — storage is blocked, so you\'ll need to re-enter the passphrase next time.';
     stopPolling();
     if (_ws) { _ws.close(); _ws = null; }
     _wsRetries = 0;
