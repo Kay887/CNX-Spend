@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="CNX">
-<title>CNX — Kay's Financial OS · v4.8</title>
+<title>CNX — Kay's Financial OS · v4.9</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -325,7 +325,7 @@ create policy "public rw" on cnx_data for all using (true);</code>
 <div class="hdr">
   <div>
     <div class="logo">CNX</div>
-    <div class="logo-sub">KAY'S FINANCIAL OS · APR–DEC 2026 · v4.8</div>
+    <div class="logo-sub">KAY'S FINANCIAL OS · APR–DEC 2026 · v4.9</div>
   </div>
   <div class="hdr-r">
     <div class="phase-tag" id="phase-tag">PHASE 1</div>
@@ -1326,6 +1326,65 @@ async function restoreFromCloud() {
 }
 
 // Same gap-filling merge the embedded snapshot uses, against an arbitrary payload.
+// ===============================================
+//  TWO-WAY RECONCILE — no edit is ever lost
+// ===============================================
+// Automatic sync used to be last-write-wins on the WHOLE payload: whichever
+// device pushed most recently replaced everything. Edit on the laptop and the
+// phone inside the same poll window and one device's work vanished silently.
+//
+// Now the two payloads are merged entry by entry. Adds from both sides survive;
+// deletes from both sides are honoured via tombstones; only genuinely
+// unmergeable values (baselines, month notes, flags) fall back to
+// last-write-wins, and those are single settings rather than your data.
+function _pickNewerRow(a, b) {
+  const stamp = r => Date.parse((r && (r.updated || r.date)) || '') || 0;
+  return stamp(b) > stamp(a) ? b : a;
+}
+// Same-id rows exist for records that are EDITED in place (investments). Union
+// keeps the first one it sees, which would silently discard the newer edit.
+function _unionEditable(base, extra, tombs) {
+  const out = new Map();
+  (base || []).forEach(e => { if (e) out.set(e.id, e); });
+  (extra || []).forEach(e => {
+    if (!e) return;
+    out.set(e.id, out.has(e.id) ? _pickNewerRow(out.get(e.id), e) : e);
+  });
+  return [...out.values()].filter(e => !_isTombstoned(e, tombs));
+}
+
+function reconcilePayloads(local, remote) {
+  const tombs      = { ...(remote.deletedIds || {}), ...(local.deletedIds || {}) };
+  const localNewer = (local.lastUpdated || 0) >= (remote.lastUpdated || 0);
+  // Scalars/settings: the newer payload wins, as before.
+  const out = localNewer ? { ...remote, ...local } : { ...local, ...remote };
+  out.deletedIds = tombs;
+  MERGE_LISTS.forEach(k => {
+    out[k] = (k === 'investments')
+      ? _unionEditable(remote[k], local[k], tombs)
+      : _unionById(remote[k], local[k], tombs);
+  });
+  MERGE_MAPS.forEach(k => {
+    const r = remote[k] || {}, l = local[k] || {}, m = {};
+    new Set([...Object.keys(r), ...Object.keys(l)]).forEach(month => {
+      m[month] = _unionById(r[month], l[month], tombs);
+    });
+    out[k] = m;
+  });
+  const rn = remote.notes || {}, ln = local.notes || {};
+  out.notes = localNewer ? { ...rn, ...ln } : { ...ln, ...rn };
+  return out;
+}
+
+// Did the reconcile produce anything the cloud does not already have? Only then
+// is a push warranted — otherwise every poll would write, forever.
+function _addsBeyond(merged, remote) {
+  const count = p => MERGE_LISTS.reduce((n, k) => n + ((p[k] || []).length), 0)
+                   + MERGE_MAPS.reduce((n, k) => n + Object.values(p[k] || {}).reduce((a, v) => a + (v || []).length, 0), 0);
+  return count(merged) !== count(remote)
+      || Object.keys(merged.deletedIds || {}).length !== Object.keys(remote.deletedIds || {}).length;
+}
+
 function mergeCloudPayload(p) {
   if (!p) return false;
   const byId = (cur, incoming) => {
@@ -1340,6 +1399,10 @@ function mergeCloudPayload(p) {
     Object.keys(inc).forEach(month => { STATE[k][month] = byId(STATE[k][month], inc[month]); });
   });
   Object.keys(p.notes || {}).forEach(m => { STATE.notes = STATE.notes || {}; if (!STATE.notes[m]) STATE.notes[m] = p.notes[m]; });
+  // Union the tombstones BEFORE pruning, so a delete made on the other device
+  // is honoured here too — deletions propagate in both directions.
+  STATE.deletedIds = { ...(p.deletedIds || {}), ...(STATE.deletedIds || {}) };
+  _applyTombstones();
   normalizeState();
   return true;
 }
@@ -1404,13 +1467,23 @@ async function pullFromSupabase(silent = false) {
       showToast('⚠️ Cloud copy is empty — kept your local data. Press ↑ PUSH to repair the cloud.', 'err', 8000);
       return;
     }
-    if (remoteTs > localTs) {
-      STATE = { ...STATE, ...remote };
-      normalizeState();
-      deriveBalances(); lsSave(); renderCurrentTab();
-      setSyncStatus('online', 'ONLINE');
+    // Reconcile in BOTH directions on every poll, regardless of which side is
+    // "newer". Union is idempotent, so a steady state costs nothing; when the
+    // two sides differ, both keep their work instead of one overwriting the other.
+    const beforeCount = JSON.stringify(MERGE_LISTS.map(k => (STATE[k] || []).length));
+    const merged = reconcilePayloads(STATE, remote);
+    STATE = merged;
+    normalizeState();
+    STATE.lastUpdated = Math.max(remoteTs, localTs) + 1;
+    deriveBalances(); lsSave();
+    const afterCount = JSON.stringify(MERGE_LISTS.map(k => (STATE[k] || []).length));
+    if (beforeCount !== afterCount) {
+      renderCurrentTab();
       if (!silent) showToast('↓ Synced latest cloud state', 'ok');
-    } else { setSyncStatus('online', 'ONLINE'); }
+    }
+    setSyncStatus('online', 'ONLINE');
+    // Push back only when this device holds something the cloud lacks.
+    if (_addsBeyond(STATE, remote)) pushToSupabase(false);
     // The cloud answered, so a push stranded by an earlier outage can go now.
     if (_pendingPush) { _pendingPush = false; pushToSupabase(false); }
   } catch(e) {
@@ -1444,6 +1517,7 @@ function normalizeState() {
   STATE.notes            = STATE.notes            || {};
   STATE.additionalIncome = STATE.additionalIncome || {};
   STATE.balanceAdjust    = STATE.balanceAdjust    || {};
+  STATE.deletedIds       = STATE.deletedIds       || {};
   if (STATE.efOpening  === undefined) STATE.efOpening  = null;
   if (STATE.bufOpening === undefined) STATE.bufOpening = null;
   backfillLedgerMonths();
@@ -1526,19 +1600,70 @@ async function forcePull() { setSyncStatus('syncing', 'PULLING'); await pullFrom
 const MERGE_LISTS = ['transactions','ccPayments','ccExpenses','efLedger','bufLedger','investments','forecastNotes'];
 const MERGE_MAPS  = ['additionalIncome','balanceAdjust'];
 
-function _unionById(base, extra) {
+// ===============================================
+//  TOMBSTONES — so deletes survive a merge
+// ===============================================
+// A union by id cannot tell "this row is new here" from "this row was deleted
+// there", so every additive merge resurrected deleted entries: delete a
+// transaction on the laptop, and the phone's next SEND UP put it straight back
+// into the cloud. We therefore remember WHAT WAS DELETED and exclude it from
+// every merge. Tombstones travel with the payload, so each device learns about
+// deletions made on the others.
+// Entry ids are Date.now(). Two entries created in the same millisecond get the
+// SAME id — after which a merge silently drops one of them and deleting either
+// removes both. Rare but not impossible. newId() keeps the same magnitude and
+// time-ordering (the EF/Buffer baseline logic compares ids against a timestamp,
+// so the scale must not change) while guaranteeing uniqueness.
+let _lastId = 0;
+function newId() {
+  const t = Date.now();
+  _lastId = Math.max(t, _lastId + 1);
+  return _lastId;
+}
+
+const TOMB_MAX = 2000;
+function _tomb(id) {
+  if (id == null) return;
+  STATE.deletedIds = STATE.deletedIds || {};
+  STATE.deletedIds[String(id)] = syncNow();
+  const keys = Object.keys(STATE.deletedIds);
+  if (keys.length > TOMB_MAX) {                       // keep the newest, drop the rest
+    keys.sort((x, y) => STATE.deletedIds[y] - STATE.deletedIds[x])
+        .slice(TOMB_MAX).forEach(k => delete STATE.deletedIds[k]);
+  }
+}
+function _isTombstoned(e, tombs) {
+  const t = tombs || STATE.deletedIds;
+  return !!(e && t && Object.prototype.hasOwnProperty.call(t, String(e.id)));
+}
+// Strip anything this device knows was deleted, across every collection.
+function _applyTombstones() {
+  if (!STATE.deletedIds || !Object.keys(STATE.deletedIds).length) return;
+  MERGE_LISTS.forEach(k => { if (Array.isArray(STATE[k])) STATE[k] = STATE[k].filter(e => !_isTombstoned(e)); });
+  MERGE_MAPS.forEach(k => {
+    const m = STATE[k] || {};
+    Object.keys(m).forEach(month => { if (Array.isArray(m[month])) m[month] = m[month].filter(e => !_isTombstoned(e)); });
+  });
+}
+
+// `tombs` lets a caller supply a COMBINED tombstone set (cloud + local), so a
+// delete made on either side is honoured — not just the ones this device knows.
+function _unionById(base, extra, tombs) {
   const have = new Set((base || []).map(e => e.id));
-  return (base || []).concat((extra || []).filter(e => e && !have.has(e.id)));
+  return (base || []).concat((extra || []).filter(e => e && !have.has(e.id)))
+                     .filter(e => !_isTombstoned(e, tombs));
 }
 
 // cloud is the base, local is the addition. Returns what the union would be
 // and exactly how many entries it adds, so the confirm dialog can say so.
 function _buildUnion(cloud, local) {
   const merged = { ...local, ...cloud };  // cloud wins on every scalar it defines
+  const tombs = { ...(cloud.deletedIds || {}), ...(local.deletedIds || {}) };
+  merged.deletedIds = tombs;
   const added = {}; let total = 0;
   MERGE_LISTS.forEach(k => {
-    const before = (cloud[k] || []).length;
-    merged[k] = _unionById(cloud[k], local[k]);
+    const before = (cloud[k] || []).filter(e => !_isTombstoned(e, tombs)).length;
+    merged[k] = _unionById(cloud[k], local[k], tombs);
     const gain = merged[k].length - before;
     if (gain) { added[k] = gain; total += gain; }
   });
@@ -1547,8 +1672,8 @@ function _buildUnion(cloud, local) {
     merged[k] = { ...c };
     let gain = 0;
     Object.keys(l).forEach(month => {
-      const before = (c[month] || []).length;
-      merged[k][month] = _unionById(c[month], l[month]);
+      const before = (c[month] || []).filter(e => !_isTombstoned(e, tombs)).length;
+      merged[k][month] = _unionById(c[month], l[month], tombs);
       gain += merged[k][month].length - before;
     });
     if (gain) { added[k] = gain; total += gain; }
@@ -2520,7 +2645,7 @@ function addAdditionalIncome(month) {
   if (!amt) return;
   if (!STATE.additionalIncome) STATE.additionalIncome = {};
   if (!STATE.additionalIncome[month]) STATE.additionalIncome[month] = [];
-  STATE.additionalIncome[month].push({ id: Date.now(), amt, source: src, date: new Date().toISOString().split('T')[0] });
+  STATE.additionalIncome[month].push({ id: newId(), amt, source: src, date: new Date().toISOString().split('T')[0] });
   if (amtEl) amtEl.value = '';
   if (srcEl) srcEl.value = '';
   save();
@@ -2528,6 +2653,7 @@ function addAdditionalIncome(month) {
   renderOverview();
 }
 function deleteAdditionalIncome(month, id) {
+  _tomb(id);
   if (!STATE.additionalIncome?.[month]) return;
   STATE.additionalIncome[month] = STATE.additionalIncome[month].filter(e => e.id !== id);
   save();
@@ -2546,13 +2672,14 @@ function addBalanceAdjust(month) {
   if (!amt) return;
   if (!STATE.balanceAdjust) STATE.balanceAdjust = {};
   if (!STATE.balanceAdjust[month]) STATE.balanceAdjust[month] = [];
-  STATE.balanceAdjust[month].push({ id: Date.now(), amt, note, date: new Date().toISOString().split('T')[0] });
+  STATE.balanceAdjust[month].push({ id: newId(), amt, note, date: new Date().toISOString().split('T')[0] });
   if (amtEl) amtEl.value = '';
   if (noteEl) noteEl.value = '';
   save();
   renderTracker();
 }
 function deleteBalanceAdjust(month, id) {
+  _tomb(id);
   if (!STATE.balanceAdjust?.[month]) return;
   STATE.balanceAdjust[month] = STATE.balanceAdjust[month].filter(e => e.id !== id);
   save();
@@ -2566,7 +2693,7 @@ function addTransaction() {
   const date = document.getElementById('tr-date').value;
   const note = document.getElementById('tr-note').value.trim();
   if (!desc || !amt || !date) { alert('Please fill description, amount and date.'); return; }
-  STATE.transactions.push({ id: Date.now(), month: curMonth, desc, cat, amt, date, note });
+  STATE.transactions.push({ id: newId(), month: curMonth, desc, cat, amt, date, note });
   document.getElementById('tr-desc').value = '';
   document.getElementById('tr-amt').value = '';
   document.getElementById('tr-note').value = '';
@@ -2576,6 +2703,7 @@ function addTransaction() {
 }
 
 function deleteTransaction(id) {
+  _tomb(id);
   STATE.transactions = STATE.transactions.filter(t => t.id !== id);
   deriveBalances(); save(); renderTracker();
   if (document.getElementById('tab-savings').classList.contains('on')) renderSavings();
@@ -2707,7 +2835,7 @@ function addCCExpense() {
   const note = document.getElementById('ccx-note').value.trim();
   if (!desc || !amt || !date) { alert('Please fill description, amount and date.'); return; }
   if (!STATE.ccExpenses) STATE.ccExpenses = [];
-  STATE.ccExpenses.push({ id: Date.now(), card, desc, amt, date, note });
+  STATE.ccExpenses.push({ id: newId(), card, desc, amt, date, note });
   document.getElementById('ccx-desc').value = '';
   document.getElementById('ccx-amt').value = '';
   document.getElementById('ccx-note').value = '';
@@ -2716,6 +2844,7 @@ function addCCExpense() {
 }
 
 function deleteCCExpense(id) {
+  _tomb(Number(id));
   STATE.ccExpenses = (STATE.ccExpenses||[]).filter(e => e.id !== Number(id));
   deriveBalances(); save(); renderCards();
 }
@@ -2726,13 +2855,14 @@ function logCC(card) {
   const v = parseFloat(inpEl.value) || 0;
   if (!v) return;
   if (!STATE.ccPayments) STATE.ccPayments = [];
-  STATE.ccPayments.push({ id: Date.now(), card, amt: v, date: new Date().toISOString().split('T')[0], note: noteEl ? noteEl.value.trim() : '' });
+  STATE.ccPayments.push({ id: newId(), card, amt: v, date: new Date().toISOString().split('T')[0], note: noteEl ? noteEl.value.trim() : '' });
   inpEl.value = '';
   if (noteEl) noteEl.value = '';
   deriveBalances(); save(); renderCards();
 }
 
 function deleteCC(id) {
+  _tomb(Number(id));
   STATE.ccPayments = (STATE.ccPayments||[]).filter(p => p.id !== Number(id));
   deriveBalances(); save(); renderCards();
 }
@@ -2744,7 +2874,7 @@ function logCCPayment() {
   if (!v) return;
   const card = parseInt(document.getElementById('cc-pay-card')?.value || '1');
   if (!STATE.ccPayments) STATE.ccPayments = [];
-  STATE.ccPayments.push({ id: Date.now(), card, amt: v, date: new Date().toISOString().split('T')[0], note: 'Quick log (Overview)' });
+  STATE.ccPayments.push({ id: newId(), card, amt: v, date: new Date().toISOString().split('T')[0], note: 'Quick log (Overview)' });
   document.getElementById('cc-pay-inp').value = '';
   deriveBalances(); save(); renderOverview();
 }
@@ -2904,7 +3034,7 @@ function addEF() {
   const amt = parseFloat(document.getElementById('ef-inp').value) || 0;
   if (!amt) return;
   const note = document.getElementById('ef-note').value.trim() || 'Manual EF addition';
-  const _e = { id: Date.now(), month: curMonth, amt, type:'add', note, date: new Date().toISOString().split('T')[0] };
+  const _e = { id: newId(), month: curMonth, amt, type:'add', note, date: new Date().toISOString().split('T')[0] };
   STATE.efLedger.push(_e);
   _afterLedgerEntry(_e, STATE.efOpening, 'EF');
   document.getElementById('ef-inp').value = '';
@@ -2916,7 +3046,7 @@ function useEF() {
   const amt = parseFloat(document.getElementById('ef-ded-inp').value) || 0;
   if (!amt) return;
   const note = document.getElementById('ef-ded-note').value.trim() || 'EF withdrawal';
-  const _e = { id: Date.now(), month: curMonth, amt, type:'deduct', note, date: new Date().toISOString().split('T')[0] };
+  const _e = { id: newId(), month: curMonth, amt, type:'deduct', note, date: new Date().toISOString().split('T')[0] };
   STATE.efLedger.push(_e);
   _afterLedgerEntry(_e, STATE.efOpening, 'EF');
   document.getElementById('ef-ded-inp').value = '';
@@ -2924,6 +3054,7 @@ function useEF() {
   deriveBalances(); save(); renderSavings();
 }
 function deleteEFEntry(id) {
+  _tomb(Number(id));
   STATE.efLedger = STATE.efLedger.filter(e => e.id !== Number(id));
   deriveBalances(); save(); renderSavings();
 }
@@ -2932,7 +3063,7 @@ function addBuffer() {
   const amt = parseFloat(document.getElementById('buf-add-inp').value) || 0;
   if (!amt) return;
   const note = document.getElementById('buf-add-note').value.trim() || 'Manual buffer addition';
-  const _e = { id: Date.now(), month: curMonth, amt, type:'add', note, date: new Date().toISOString().split('T')[0] };
+  const _e = { id: newId(), month: curMonth, amt, type:'add', note, date: new Date().toISOString().split('T')[0] };
   STATE.bufLedger.push(_e);
   _afterLedgerEntry(_e, STATE.bufOpening, 'Buffer');
   document.getElementById('buf-add-inp').value = '';
@@ -2944,7 +3075,7 @@ function useBuffer() {
   const amt = parseFloat(document.getElementById('buf-inp').value) || 0;
   if (!amt) return;
   const note = document.getElementById('buf-note').value.trim() || 'Buffer withdrawal';
-  const _e = { id: Date.now(), month: curMonth, amt, type:'deduct', note, date: new Date().toISOString().split('T')[0] };
+  const _e = { id: newId(), month: curMonth, amt, type:'deduct', note, date: new Date().toISOString().split('T')[0] };
   STATE.bufLedger.push(_e);
   _afterLedgerEntry(_e, STATE.bufOpening, 'Buffer');
   document.getElementById('buf-inp').value = '';
@@ -2952,6 +3083,7 @@ function useBuffer() {
   deriveBalances(); save(); renderSavings();
 }
 function deleteBufEntry(id) {
+  _tomb(Number(id));
   STATE.bufLedger = STATE.bufLedger.filter(e => e.id !== Number(id));
   deriveBalances(); save(); renderSavings();
 }
@@ -3208,7 +3340,7 @@ function saveInvestment() {
     showToast('✓ ' + name + ' updated', 'ok');
   } else {
     STATE.investments.push({
-      id: Date.now(), name, amt, type: el.type.value, note: el.note.value.trim(),
+      id: newId(), name, amt, type: el.type.value, note: el.note.value.trim(),
       date: new Date().toISOString().split('T')[0]
     });
     showToast('✓ ' + name + ' added to portfolio', 'ok');
@@ -3242,6 +3374,7 @@ function cancelInvestEdit() {
   renderInvest();
 }
 function deleteInvestment(id) {
+  _tomb(Number(id));
   STATE.investments = (STATE.investments || []).filter(i => i.id !== Number(id));
   if (_invEditId === Number(id)) _invEditId = null;
   save(); renderInvest();
@@ -3363,11 +3496,12 @@ function addForecastNote() {
   const inp = document.getElementById('fc-note-inp');
   const txt = inp.value.trim();
   if (!txt) return;
-  STATE.forecastNotes.push({ id: Date.now(), txt, date: new Date().toISOString().split('T')[0] });
+  STATE.forecastNotes.push({ id: newId(), txt, date: new Date().toISOString().split('T')[0] });
   inp.value = '';
   save(); renderForecast();
 }
 function deleteForecastNote(id) {
+  _tomb(Number(id));
   STATE.forecastNotes = STATE.forecastNotes.filter(n => n.id !== Number(id));
   save(); renderForecast();
 }
@@ -3541,11 +3675,33 @@ function handleImport(ev) {
   reader.onload = e => {
     try {
       const data = JSON.parse(e.target.result);
-      STATE = { ...STATE, ...data };
-      normalizeState();
-      STATE.lastUpdated = syncNow();
-      deriveBalances(); save(); renderCurrentTab();
-      showToast('✓ Imported — data restored & synced', 'ok');
+      // Import used to REPLACE everything and immediately push, so importing an
+      // older backup on a connected device destroyed every newer entry in the
+      // cloud, with no warning. Merge is now the default and Cancel is safe;
+      // replacing requires a second, explicit confirmation.
+      const n = (data.transactions || []).length;
+      const doMerge = confirm(
+        'Import this backup (' + n + ' transactions)?\n\n' +
+        'OK      = MERGE — keep everything you have now and add anything missing (recommended)\n' +
+        'Cancel  = choose REPLACE instead');
+      if (doMerge) {
+        mergeCloudPayload(data);
+        STATE.fromSeed = false;
+        STATE.lastUpdated = syncNow();
+        deriveBalances(); save(); renderCurrentTab();
+        showToast('✓ Imported and merged — nothing was removed', 'ok', 5000);
+      } else {
+        if (!confirm('REPLACE EVERYTHING with this file?\n\nThis discards the data currently on this device AND overwrites the cloud copy. Any entry made since this backup was taken is lost. This cannot be undone.')) {
+          showToast('Import cancelled — nothing changed', 'info', 4000);
+          return;
+        }
+        STATE = { ...STATE, ...data };
+        normalizeState();
+        STATE.fromSeed = false;
+        STATE.lastUpdated = syncNow();
+        deriveBalances(); save(); renderCurrentTab();
+        showToast('✓ Imported — everything replaced with this file', 'ok', 5000);
+      }
     } catch(err) { showToast('❌ Import failed: invalid JSON', 'err', 5000); }
   };
   reader.readAsText(file);
