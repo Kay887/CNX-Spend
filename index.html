@@ -1189,6 +1189,7 @@ async function pushToSupabase(debounce = true) {
     }
     if (!res.ok && res.status !== 204) { const err = await res.text().catch(() => res.status); throw new Error(res.status + ': ' + err); }
     pushOk = true;
+    _dirty = false;
     lsSave();
     setSyncStatus('online', 'SAVED ✓');
     setTimeout(() => setSyncStatus('online', 'ONLINE'), 2000);
@@ -1373,6 +1374,25 @@ async function pullFromSupabase(silent = false) {
     const remote    = rows[0].payload;
     const remoteTs  = remote.lastUpdated || 0;
     const localTs   = STATE.lastUpdated  || 0;
+
+    // SEEDED STATE NEVER COMPETES ON TIMESTAMP.
+    // A device that booted from the embedded snapshot holds provisional data.
+    // The moment you type anything into it, save() stamps it with the current
+    // time — which used to make that stale snapshot "newer" than the cloud, so
+    // the pull was ignored and the next push overwrote real data from your
+    // other device. (Reproduced: cloud went 204 rows -> 200, silently.)
+    // Instead, reconcile: UNION the cloud into what is here, keeping both the
+    // cloud's rows and anything typed locally, then drop the provisional flag.
+    if (STATE.fromSeed && !_payloadIsEmpty(remote)) {
+      mergeCloudPayload(remote);
+      STATE.fromSeed = false;
+      STATE.lastUpdated = Math.max(remoteTs, localTs) + 1;
+      deriveBalances(); lsSave(); renderCurrentTab();
+      setSyncStatus('online', 'ONLINE');
+      pushToSupabase(false);   // send the union up so nothing is one-sided
+      if (!silent) showToast('↓ Merged cloud data with this device', 'ok');
+      return;
+    }
     // v4.1: last-write-wins on timestamp only. The old "more transactions wins"
     // rule resurrected locally-deleted transactions on the next poll.
     // v4.7 GUARD: an EMPTY remote payload never overwrites a populated local
@@ -1482,6 +1502,7 @@ function restoreHistoric() {
   if (!confirm('Restore the 1 Sep 2026 historic snapshot (' + n + ' transactions, CC payments, EF/Buffer ledgers, notes)?\n\nExisting entries are kept — this only fills in what is missing.')) return;
   mergeHistoricSeed();
   STATE.seedSuppressed = false;
+  STATE.fromSeed = false;   // an explicit restore is a decision, not a fallback
   STATE.lastUpdated = syncNow();
   deriveBalances(); save(); renderCurrentTab();
   showToast('✓ Historic data restored & synced', 'ok', 4000);
@@ -1861,7 +1882,20 @@ async function saveSupabaseConfig() {
 
 // Any USER action stamps immediately, so a real edit is never left sitting at
 // timestamp 0 (where a cloud pull could outrank it) if the push is delayed or fails.
-const save = () => { STATE.lastUpdated = syncNow(); lsSave(); pushToSupabase(true); };
+const save = () => { STATE.lastUpdated = syncNow(); _dirty = true; lsSave(); pushToSupabase(true); };
+
+// There is a 1-second debounce before a save reaches the cloud. Switching tabs,
+// closing the window or locking the phone inside that window used to strand the
+// newest entries on the device — which matters exactly when you type a few
+// entries and immediately open the app somewhere else. Flush on the way out.
+let _dirty = false;
+function flushPendingPush() {
+  if (!_dirty || !sbReady || !sbSecret) return;
+  clearTimeout(_pushDebounce);
+  pushToSupabase(false);
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushPendingPush(); });
+window.addEventListener('pagehide', flushPendingPush);
 const load = () => { lsLoad(); };
 const fmt = n => '₹' + Math.abs(Math.round(n)).toLocaleString('en-IN');
 // v4.1 — escape user-entered strings before innerHTML interpolation (stored-XSS guard,
@@ -3582,6 +3616,7 @@ function init() {
   let seededLocally = false;
   if (_shouldAutoSeed() && mergeHistoricSeed()) {
     STATE.lastUpdated = 0;
+    STATE.fromSeed = true;   // provisional: must reconcile with the cloud before it can win
     seededLocally = true;
   }
   // Open on the current real month if inside the plan window
@@ -3610,7 +3645,8 @@ function init() {
     // The cloud row may itself be empty (or the pull may have failed) — make
     // sure we still land on the historic data rather than an empty app.
     if (_shouldAutoSeed() && mergeHistoricSeed()) {
-      STATE.lastUpdated = 0;   // fallback only — see note above
+      STATE.lastUpdated = 0;
+    STATE.fromSeed = true;   // provisional: must reconcile with the cloud before it can win   // fallback only — see note above
       seededLocally = true;
     }
     if (seededLocally) { deriveBalances(); lsSave(); renderCurrentTab(); showToast('↺ Historic data restored from local snapshot', 'ok', 4000); }
