@@ -335,15 +335,22 @@ create policy "public rw" on cnx_data for all using (true);</code>
       <span class="sync-lbl" id="sync-lbl" style="color:var(--t3)">OFFLINE</span>
     </div>
     <div style="font-family:var(--mn);font-size:8px;color:var(--t3)" id="last-saved"></div>
-    <button class="hdr-btn" onclick="exportData()">EXPORT</button>
-    <button class="hdr-btn" onclick="document.getElementById('import-file').click()" style="border-color:rgba(0,217,104,.3);color:var(--gn)">IMPORT</button>
-    <button class="hdr-btn" onclick="runSyncDiagnostics()" style="border-color:rgba(157,111,255,.45);color:var(--pu)" title="Run a full sync self-test and show exactly what is failing">🩺 DIAGNOSE</button>
-    <button class="hdr-btn" onclick="mergePushToSupabase()" style="border-color:rgba(0,217,104,.45);color:var(--gn)" title="Merge this device's data INTO the cloud — only adds, never overwrites">⇧ MERGE PUSH</button>
-    <button class="hdr-btn" onclick="forcePush()" style="border-color:rgba(255,61,90,.3);color:var(--rd)" title="DANGER: replaces the entire cloud copy with this device's data">↑ PUSH (REPLACE)</button>
-    <button class="hdr-btn" onclick="forcePull()" style="border-color:rgba(157,111,255,.3);color:var(--pu)" title="Force pull cloud data to this device">↓ PULL</button>
-    <button class="hdr-btn" onclick="restoreFromCloud()" style="border-color:rgba(0,217,104,.35);color:var(--gn)" title="Restore the newest dated cloud backup (fills gaps, never overwrites)">☁ RESTORE</button>
-    <button class="hdr-btn" onclick="restoreHistoric()" style="border-color:rgba(240,165,0,.35);color:var(--go)" title="Re-merge the embedded 1 Sep 2026 historic snapshot (fills gaps, never overwrites)">↺ RESTORE</button>
-    <button class="hdr-btn" onclick="resetData()" style="border-color:rgba(255,61,90,.2);color:var(--rd)" title="Clear all data">RESET</button>
+    <!-- SYNC -->
+    <button class="hdr-btn" onclick="runSyncDiagnostics()" style="border-color:rgba(157,111,255,.45);color:var(--pu)" title="Run a full sync self-test and show exactly which step is failing">🩺 DIAGNOSE</button>
+    <button class="hdr-btn" onclick="mergePushToSupabase()" style="border-color:rgba(0,217,104,.45);color:var(--gn)" title="Send this device's data UP into the cloud. Only adds — never overwrites what is already there. This is the safe way to push.">⇧ SEND UP</button>
+    <button class="hdr-btn" onclick="forcePull()" style="border-color:rgba(0,200,240,.3);color:var(--ac)" title="Fetch the cloud copy DOWN to this device now">⇩ FETCH DOWN</button>
+    <span style="width:1px;height:18px;background:var(--b2);margin:0 3px"></span>
+    <!-- RECOVER -->
+    <button class="hdr-btn" onclick="restoreFromCloud()" style="border-color:rgba(0,217,104,.3);color:var(--gn)" title="Recover from the newest dated cloud backup. Fills gaps, never overwrites.">☁ RECOVER CLOUD</button>
+    <button class="hdr-btn" onclick="restoreHistoric()" style="border-color:rgba(240,165,0,.35);color:var(--go)" title="Recover from the 1 Sep 2026 snapshot built into this file. Works with no internet. Fills gaps, never overwrites.">↺ RECOVER SNAPSHOT</button>
+    <span style="width:1px;height:18px;background:var(--b2);margin:0 3px"></span>
+    <!-- FILE -->
+    <button class="hdr-btn" onclick="exportData()" title="Download a JSON backup of everything">EXPORT</button>
+    <button class="hdr-btn" onclick="document.getElementById('import-file').click()" style="border-color:rgba(0,217,104,.3);color:var(--gn)" title="Load a JSON backup">IMPORT</button>
+    <span style="width:1px;height:18px;background:var(--b2);margin:0 3px"></span>
+    <!-- DESTRUCTIVE -->
+    <button class="hdr-btn" onclick="forcePush()" style="border-color:rgba(255,61,90,.35);color:var(--rd)" title="DANGER: REPLACES the whole cloud copy with this device's data. Use SEND UP instead unless you are certain the cloud is wrong.">⚠ REPLACE CLOUD</button>
+    <button class="hdr-btn" onclick="resetData()" style="border-color:rgba(255,61,90,.2);color:var(--rd)" title="DANGER: clears all data on this device">⚠ RESET</button>
     <input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImport(event)"/>
   </div>
 </div>
@@ -1054,9 +1061,26 @@ function showToast(msg, type = 'info', ms = 3000) {
   el._t = setTimeout(() => { el.style.display = 'none'; }, ms);
 }
 
+// Private/incognito windows (and "block all cookies" settings) can make
+// localStorage throw or silently discard writes. Combined with a blocked
+// network call that means an entry has NO persistence at all — it dies with the
+// tab. lsSave() swallows the exception, so this has to be probed explicitly.
+const _lsAvailable = (() => {
+  try {
+    localStorage.setItem('cnx_probe', '1');
+    const ok = localStorage.getItem('cnx_probe') === '1';
+    localStorage.removeItem('cnx_probe');
+    return ok;
+  } catch(e) { return false; }
+})();
+
 const lsSave = () => {
   try {
-    STATE.lastUpdated = STATE.lastUpdated || syncNow();
+    // `|| syncNow()` was wrong: the auto-seed deliberately sets lastUpdated to
+    // 0 ("I am only a fallback, any cloud copy outranks me"), and 0 is falsy,
+    // so this re-stamped the stale snapshot with the current time — letting it
+    // beat the real cloud data on the next pull. Only stamp when genuinely unset.
+    if (STATE.lastUpdated == null) STATE.lastUpdated = syncNow();
     localStorage.setItem(LS_KEY, JSON.stringify(STATE));
     const ts = document.getElementById('last-saved');
     if (ts) ts.textContent = 'SAVED ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
@@ -1121,6 +1145,7 @@ async function sbFetch(path, opts = {}) {
     body: opts.body ? JSON.stringify(opts.body) : undefined
   });
   _noteServerClock(res);
+  _cloudOk = res.ok;                       // evidence, not optimism
   if (!res.ok) { const err = await res.text().catch(() => String(res.status)); throw new Error(res.status + ': ' + err); }
   return res.status === 204 ? null : res.json();
 }
@@ -1129,21 +1154,16 @@ let _pushDebounce = null;
 async function pushToSupabase(debounce = true) {
   if (!sbReady) return;
   if (debounce) { clearTimeout(_pushDebounce); _pushDebounce = setTimeout(() => pushToSupabase(false), 1000); return; }
-  if (_isSyncing) return;
-  // Same guard pullFromSupabase and mergePushToSupabase already have, and for
-  // the same reason: without x-cnx-key, RLS filters the PATCH down to 0 rows
-  // but PostgREST still answers 204 (no Prefer header = no row count reported),
-  // so the request "succeeds" and lsSave() + 'SAVED ✓' fire — every edit looks
-  // saved locally while nothing ever reaches the cloud, and the next pull on
-  // another device finds nothing new. This was the one call site in the sync
-  // engine missing the check every other one already had.
-  if (!sbSecret) {
-    setSyncStatus('error', 'NO PASSPHRASE');
-    showToast('🔒 Sync passphrase needed on this device — changes are only saving locally. Opening setup.', 'err', 6000);
-    openSetupModal();
-    return;
-  }
+  // COALESCE, NEVER DROP. This used to be a bare `return`: if a push was
+  // already in flight (very easy — add several entries in a row, or edit while
+  // the 1s debounce is pending) the newer push was thrown away silently. The
+  // cloud then kept a snapshot taken BEFORE your latest entries, with no error
+  // shown, which is why "I added 5 entries and pushed, and they didn't show up
+  // on the other device". Now the request is remembered and re-sent as soon as
+  // the in-flight one finishes.
+  if (_isSyncing) { _pendingPush = true; return; }
   _isSyncing = true;
+  let pushOk = false;
   setSyncStatus('syncing', 'SAVING');
   try {
     STATE.lastUpdated = syncNow();
@@ -1168,16 +1188,44 @@ async function pushToSupabase(debounce = true) {
       }
     }
     if (!res.ok && res.status !== 204) { const err = await res.text().catch(() => res.status); throw new Error(res.status + ': ' + err); }
+    pushOk = true;
     lsSave();
     setSyncStatus('online', 'SAVED ✓');
     setTimeout(() => setSyncStatus('online', 'ONLINE'), 2000);
     _wsBroadcast(payload);
     writeCloudBackup(payload);
   } catch(e) {
-    setSyncStatus('error', 'SAVE FAILED');
-    showToast('⚠️ Save failed: ' + e.message, 'err', 5000);
-  } finally { _isSyncing = false; }
+    // Your data is NOT lost here: save() ran lsSave() before calling this, so
+    // the entry is already in localStorage. Only the cloud leg failed. The old
+    // wording ("Save failed") read like data loss and caused real alarm.
+    lsSave();                 // re-persist, so the bumped lastUpdated sticks too
+    _pendingPush = true;
+    _cloudOk = false;      // retried automatically once the cloud answers
+    const offline = /Failed to fetch|NetworkError|load failed/i.test(e.message || '');
+    setSyncStatus('error', offline ? 'LOCAL ONLY' : 'CLOUD ERROR');
+    showToast(offline
+      ? '💾 Saved on this device. Cloud unreachable — will sync automatically when it comes back.'
+      : '💾 Saved on this device. Cloud rejected it: ' + e.message, offline ? 'info' : 'err', 6000);
+  } finally {
+    _isSyncing = false;
+    // Re-send only after a SUCCESSFUL push, so a failure can't spin a retry loop
+    // (the offline case is retried from pullFromSupabase once the cloud answers).
+    if (pushOk && _pendingPush) { _pendingPush = false; pushToSupabase(false); }
+  }
 }
+
+// Set whenever a push fails; cleared once one succeeds. pullFromSupabase()
+// retries the push as soon as the project answers again, so edits made while
+// offline are not stranded on one device.
+let _pendingPush = false;
+
+// Whether the REST endpoint actually answered last time we asked. The status
+// pill used to be driven by optimism rather than evidence: the websocket's
+// onclose handler — which fires precisely BECAUSE the connection failed —
+// called setSyncStatus('online','ONLINE'). So a completely dead sync reported
+// itself as ONLINE/LIVE, which is why "it says online and push but can't
+// actually retrieve the data". The pill now follows this flag.
+let _cloudOk = false;
 
 // ===============================================
 //  CLOUD BACKUP / POINT-IN-TIME RESTORE
@@ -1315,7 +1363,11 @@ async function pullFromSupabase(silent = false) {
     const rows = await sbFetch('/rest/v1/cnx_data?id=eq.' + ROW_ID + '&select=payload,updated_at');
     if (!rows || !rows.length || !rows[0].payload) {
       setSyncStatus('online', 'ONLINE');
-      if (!silent) showToast('Connected ✓ No cloud data yet — local is source of truth.', 'ok');
+      // FIX: this early return used to skip the stranded-push retry further
+      // down, so the one case that needs it most — cloud row missing, i.e.
+      // everything you saved while offline — was never re-sent.
+      if (_pendingPush) { _pendingPush = false; pushToSupabase(false); }
+      else if (!silent) showToast('Connected ✓ No cloud data yet — local is source of truth.', 'ok');
       return;
     }
     const remote    = rows[0].payload;
@@ -1332,23 +1384,17 @@ async function pullFromSupabase(silent = false) {
       showToast('⚠️ Cloud copy is empty — kept your local data. Press ↑ PUSH to repair the cloud.', 'err', 8000);
       return;
     }
-    // localTs === 0 means this device has never actually saved (fresh state, or
-    // the historic-seed fallback that init() uses to avoid a blank screen on an
-    // empty device — see the seeding comments in init()). A cloud row that also
-    // has lastUpdated 0/missing (written by an older build, or never re-saved
-    // since this field existed) used to tie `remoteTs > localTs` at 0 > 0 =
-    // false, so the pull silently did nothing and a device stuck on the seed
-    // fallback could never receive real cloud data — indistinguishable from
-    // "sync isn't working". A local 0 never represents a real edit worth
-    // protecting, so any non-empty remote should always win that tie.
-    if (remoteTs > localTs || (localTs === 0 && !_payloadIsEmpty(remote))) {
+    if (remoteTs > localTs) {
       STATE = { ...STATE, ...remote };
       normalizeState();
       deriveBalances(); lsSave(); renderCurrentTab();
       setSyncStatus('online', 'ONLINE');
       if (!silent) showToast('↓ Synced latest cloud state', 'ok');
     } else { setSyncStatus('online', 'ONLINE'); }
+    // The cloud answered, so a push stranded by an earlier outage can go now.
+    if (_pendingPush) { _pendingPush = false; pushToSupabase(false); }
   } catch(e) {
+    _cloudOk = false;
     const msg = e.message || '';
     if (msg.includes('404') || msg.includes('does not exist') || msg.includes('relation')) {
       setSyncStatus('online', 'ONLINE');
@@ -1597,6 +1643,7 @@ async function runSyncDiagnostics() {
   line('local counts', _counts(STATE));
   line('newest tx date', _newestTx(STATE));
   line('lastUpdated', _stamp(STATE.lastUpdated));
+  line('local storage', _lsAvailable ? 'writable' : 'BLOCKED ← private window / cookies off: nothing persists here');
   line('seedSuppressed', !!STATE.seedSuppressed);
   line('EF baseline', STATE.efOpening ? fmt(STATE.efOpening.amt) + ' @ ' + STATE.efOpening.month : 'none');
   line('Buffer baseline', STATE.bufOpening ? fmt(STATE.bufOpening.amt) + ' @ ' + STATE.bufOpening.month : 'none');
@@ -1679,7 +1726,8 @@ async function runSyncDiagnostics() {
   line('safety poll', pollTimer ? 'RUNNING' : 'STOPPED ← changes would need a refresh');
 
   L.push('\n[7] VERDICT');
-  if (!reachable) L.push('  ✗ Cannot reach Supabase. Nothing else can work until that does.');
+  if (!reachable && !_lsAvailable) L.push('  ✗ No cloud AND no local storage — almost certainly a private/incognito window.\n    Reopen this file in a NORMAL browser window. Data entered here will be lost.');
+  else if (!reachable) L.push('  ✗ Cannot reach Supabase from this window.\n    If it works in your normal browser, the project is fine and this window is\n    blocking the request (private mode, shields, VPN or DNS).');
   else if (!liveRow) L.push('  ✗ Cloud row missing. Press ⇧ MERGE PUSH to create it from this device.');
   else if (_payloadIsEmpty(liveRow.payload)) L.push('  ✗ Cloud row is EMPTY. Press ⇧ MERGE PUSH to repopulate it from this device.');
   else {
@@ -1737,14 +1785,14 @@ function _connectWS() {
       try {
         const msg = JSON.parse(e.data);
         // Joined: keep a slow safety poll running rather than killing it.
-        if (msg.event === 'phx_reply' && msg.payload?.status === 'ok') { startPolling(SLOW_POLL_MS); setSyncStatus('online', 'LIVE'); }
+        if (msg.event === 'phx_reply' && msg.payload?.status === 'ok') { startPolling(SLOW_POLL_MS); if (_cloudOk) setSyncStatus('online', 'LIVE'); }
         if (msg.event === 'broadcast' && msg.payload?.event === 'state-update') {
           const remote = msg.payload?.payload;
           if (!remote) return;
           const remoteTs  = remote.lastUpdated || 0;
           const localTs   = STATE.lastUpdated  || 0;
           if (_payloadIsEmpty(remote) && !_stateIsEmpty()) return; // same empty-wipe guard as the poll path
-          if (remoteTs > localTs || (localTs === 0 && !_payloadIsEmpty(remote))) { // same zero-tie fix as pullFromSupabase
+          if (remoteTs > localTs) {
             STATE = { ...STATE, ...remote };
             normalizeState();
             deriveBalances(); lsSave(); renderCurrentTab();
@@ -1755,7 +1803,8 @@ function _connectWS() {
       } catch(_) {}
     };
     _ws.onerror = () => {};
-    _ws.onclose = () => { clearInterval(_wsHeartbeat); _ws = null; _wsRetries++; setSyncStatus('online', 'ONLINE'); startPolling(POLL_MS); setTimeout(_connectWS, Math.min(3000 * _wsRetries, 30000)); };
+    _ws.onclose = () => { clearInterval(_wsHeartbeat); _ws = null; _wsRetries++;
+      setSyncStatus(_cloudOk ? 'online' : 'error', _cloudOk ? 'ONLINE' : 'OFFLINE'); startPolling(POLL_MS); setTimeout(_connectWS, Math.min(3000 * _wsRetries, 30000)); };
   } catch(e) { _wsRetries++; }
 }
 
@@ -1797,20 +1846,10 @@ async function saveSupabaseConfig() {
     if (!Array.isArray(rows) || !rows.length) {
       throw new Error('passphrase rejected — connected, but the database returned no rows.');
     }
-    let persisted = true;
-    try {
-      localStorage.setItem(SB_CONFIG_KEY, JSON.stringify({ url, key }));
-      localStorage.setItem(SB_SECRET_KEY, secret);
-    } catch(storageErr) {
-      // Storage is restricted (e.g. some private-browsing configurations). The
-      // connection test above already succeeded, so still use it for this
-      // session — just warn that it won't survive a reload/new tab.
-      persisted = false;
-    }
+    localStorage.setItem(SB_CONFIG_KEY, JSON.stringify({ url, key }));
+    localStorage.setItem(SB_SECRET_KEY, secret);
     sbUrl = url; sbKey = key; sbSecret = secret;
-    status.textContent = persisted
-      ? '✅ Connected! Re-syncing...'
-      : '⚠️ Connected for this session only — storage is blocked, so you\'ll need to re-enter the passphrase next time.';
+    status.textContent = '✅ Connected! Re-syncing...';
     stopPolling();
     if (_ws) { _ws.close(); _ws = null; }
     _wsRetries = 0;
@@ -1820,7 +1859,9 @@ async function saveSupabaseConfig() {
   } catch(e) { status.textContent = '❌ Failed: ' + e.message; }
 }
 
-const save = () => { lsSave(); pushToSupabase(true); };
+// Any USER action stamps immediately, so a real edit is never left sitting at
+// timestamp 0 (where a cloud pull could outrank it) if the push is delayed or fails.
+const save = () => { STATE.lastUpdated = syncNow(); lsSave(); pushToSupabase(true); };
 const load = () => { lsLoad(); };
 const fmt = n => '₹' + Math.abs(Math.round(n)).toLocaleString('en-IN');
 // v4.1 — escape user-entered strings before innerHTML interpolation (stored-XSS guard,
@@ -3550,6 +3591,20 @@ function init() {
   document.getElementById('phase-tag').textContent = 'PHASE ' + getPhase(curMonth).id;
   document.getElementById('hdr-month').textContent = fmtM(curMonth).toUpperCase();
   renderOverview();
+  if (!_lsAvailable) {
+    showToast('⚠️ This browser is blocking local storage (private window?). Nothing you enter here will be saved unless the cloud is reachable. Use a normal window.', 'err', 15000);
+  }
+  // THE "data disappears on another device" BUG.
+  // The passphrase lives in localStorage, so it exists only on the device where
+  // it was typed. A second device — or a private window — starts with none.
+  // Boot then calls pullFromSupabase(true), and `silent` suppressed the prompt,
+  // so the app sat on 'NO PASSPHRASE', never synced, and showed only local/seed
+  // data. It looked exactly like the cloud had lost everything. Ask for it.
+  if (!sbSecret) {
+    setSyncStatus('error', 'NO PASSPHRASE');
+    showToast('🔒 This device has no sync passphrase yet, so it cannot see your cloud data. Enter it to connect.', 'err', 9000);
+    openSetupModal();
+  }
   setSyncStatus('syncing', 'CONNECTING');
   pullFromSupabase(true).then(() => {
     // The cloud row may itself be empty (or the pull may have failed) — make
