@@ -1130,6 +1130,19 @@ async function pushToSupabase(debounce = true) {
   if (!sbReady) return;
   if (debounce) { clearTimeout(_pushDebounce); _pushDebounce = setTimeout(() => pushToSupabase(false), 1000); return; }
   if (_isSyncing) return;
+  // Same guard pullFromSupabase and mergePushToSupabase already have, and for
+  // the same reason: without x-cnx-key, RLS filters the PATCH down to 0 rows
+  // but PostgREST still answers 204 (no Prefer header = no row count reported),
+  // so the request "succeeds" and lsSave() + 'SAVED ✓' fire — every edit looks
+  // saved locally while nothing ever reaches the cloud, and the next pull on
+  // another device finds nothing new. This was the one call site in the sync
+  // engine missing the check every other one already had.
+  if (!sbSecret) {
+    setSyncStatus('error', 'NO PASSPHRASE');
+    showToast('🔒 Sync passphrase needed on this device — changes are only saving locally. Opening setup.', 'err', 6000);
+    openSetupModal();
+    return;
+  }
   _isSyncing = true;
   setSyncStatus('syncing', 'SAVING');
   try {
